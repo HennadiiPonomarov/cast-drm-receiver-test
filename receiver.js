@@ -1,6 +1,7 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const statusElement = document.getElementById('receiver-status');
+const loadingElement = document.getElementById('receiver-loading');
 
 function showReceiverStatus(message) {
   if (!statusElement) {
@@ -13,6 +14,18 @@ function showReceiverStatus(message) {
 function hideReceiverStatus() {
   if (statusElement) {
     statusElement.classList.remove('visible');
+  }
+}
+
+function showLoading() {
+  if (loadingElement) {
+    loadingElement.classList.add('visible');
+  }
+}
+
+function hideLoading() {
+  if (loadingElement) {
+    loadingElement.classList.remove('visible');
   }
 }
 
@@ -37,6 +50,7 @@ function limitMasterPlaylist(manifest, maxHeight) {
 }
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
+  showLoading();
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
   if (drm.licenseUrl) {
@@ -71,10 +85,12 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
 playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
   console.error('[SWEET Receiver] Playback error', event);
+  showLoading();
   showReceiverStatus(`Playback error: ${code}`);
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  hideLoading();
   hideReceiverStatus();
 });
 

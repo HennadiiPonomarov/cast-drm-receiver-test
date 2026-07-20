@@ -28,6 +28,53 @@
         --theme-hue: 183;
       }
 
+      #receiver-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background: #0d1820;
+        color: #f4f8fa;
+        font: 600 32px/1 Arial, sans-serif;
+        letter-spacing: 0;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 180ms ease, visibility 180ms ease;
+        pointer-events: none;
+      }
+
+      #receiver-loading.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      #receiver-loading-brand {
+        color: #f4f8fa;
+      }
+
+      #receiver-loading-brand span {
+        color: #20c5c9;
+      }
+
+      #receiver-loading-spinner {
+        width: 38px;
+        height: 38px;
+        border: 3px solid rgba(244, 248, 250, 0.18);
+        border-top-color: #20c5c9;
+        border-radius: 50%;
+        animation: receiver-spin 720ms linear infinite;
+      }
+
+      @keyframes receiver-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
       #receiver-status {
         position: fixed;
         right: 4vw;
@@ -52,6 +99,10 @@
   </head>
   <body>
     <cast-media-player></cast-media-player>
+    <div id="receiver-loading" class="visible" aria-hidden="true">
+      <div id="receiver-loading-brand"><span>sweet</span>.tv</div>
+      <div id="receiver-loading-spinner"></div>
+    </div>
     <div id="receiver-status" role="status" aria-live="polite"></div>
   </body>
 </html>
