@@ -44,16 +44,6 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
     playbackConfig.protectionSystem = cast.framework.ContentProtection.WIDEVINE;
-    playbackConfig.shakaConfig = {
-      ...(playbackConfig.shakaConfig || {}),
-      drm: {
-        ...((playbackConfig.shakaConfig || {}).drm || {}),
-        servers: {
-          ...((playbackConfig.shakaConfig || {}).drm?.servers || {}),
-          'com.widevine.alpha': drm.licenseUrl,
-        },
-      },
-    };
   }
 
   if (drm.licenseHeaders) {
