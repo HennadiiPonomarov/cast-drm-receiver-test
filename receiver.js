@@ -1,5 +1,6 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
+const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
 const loadingElement = document.getElementById('receiver-loading');
 const loadingTitleElement = document.getElementById('receiver-loading-title');
@@ -44,6 +45,28 @@ function showLoading(media) {
 function hideLoading() {
   if (loadingElement) {
     loadingElement.classList.remove('visible');
+  }
+}
+
+function toTrackPayload(track) {
+  return {
+    id: track.trackId,
+    name: track.name || '',
+    language: track.language || '',
+  };
+}
+
+function sendTrackCatalog() {
+  try {
+    const audioTracks = playerManager.getAudioTracksManager().getTracks().map(toTrackPayload);
+    const subtitleTracks = playerManager.getTextTracksManager().getTracks().map(toTrackPayload);
+    context.sendCustomMessage(TRACKS_CHANNEL, undefined, {
+      type: 'tracks',
+      audio: audioTracks,
+      subtitles: subtitleTracks,
+    });
+  } catch (error) {
+    console.warn('[SWEET Receiver] Track catalog is not ready', error);
   }
 }
 
@@ -110,8 +133,23 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   hideLoading();
   hideReceiverStatus();
+  sendTrackCatalog();
+});
+
+context.addCustomMessageListener(TRACKS_CHANNEL, event => {
+  try {
+    const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+    if (message?.type === 'request-tracks') {
+      sendTrackCatalog();
+    }
+  } catch (error) {
+    console.warn('[SWEET Receiver] Invalid custom message', error);
+  }
 });
 
 const options = new cast.framework.CastReceiverOptions();
 options.useShakaForHls = true;
+options.customNamespaces = {
+  [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
+};
 context.start(options);
