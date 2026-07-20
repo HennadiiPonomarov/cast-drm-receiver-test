@@ -15,17 +15,13 @@
         background: #0d1820;
       }
 
-      cast-media-player {
-        --background: #0d1820;
-        --background-color: #0d1820;
-        --logo-background: #0d1820;
-        --logo-color: #20c5c9;
-        --splash-background: #0d1820;
-        --splash-color: #0d1820;
-        --progress-color: #20c5c9;
-        --watermark-color: #f4f8fa;
-        --font-family: Arial, sans-serif;
-        --theme-hue: 183;
+      .castMediaElement {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        background: #000;
+        object-fit: contain;
       }
 
       #receiver-loading {
@@ -118,7 +114,7 @@
     <script defer src="receiver.js"></script>
   </head>
   <body>
-    <cast-media-player></cast-media-player>
+    <video class="castMediaElement" autoplay playsinline></video>
     <div id="receiver-loading" class="visible" aria-hidden="true">
       <div id="receiver-loading-brand">
         <img id="receiver-loading-artwork" alt="">
