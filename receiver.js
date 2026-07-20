@@ -1,15 +1,10 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
-const mediaElement = document.getElementById('cast-media-element');
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
 const loadingElement = document.getElementById('receiver-loading');
 const loadingTitleElement = document.getElementById('receiver-loading-title');
 const loadingArtworkElement = document.getElementById('receiver-loading-artwork');
-
-if (mediaElement) {
-  playerManager.setMediaElement(mediaElement);
-}
 
 function sendReceiverMessage(payload) {
   try {

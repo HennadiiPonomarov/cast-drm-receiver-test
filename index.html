@@ -15,13 +15,29 @@
         background: #0d1820;
       }
 
-      .castMediaElement {
+      cast-media-player {
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        background: #000;
-        object-fit: contain;
+        --background: #000;
+        --background-color: #000;
+        --background-image: none;
+        --logo-background: #000;
+        --logo-color: #000;
+        --logo-image: none;
+        --splash-background: #000;
+        --splash-color: #000;
+        --splash-image: none;
+        --watermark-background: transparent;
+        --watermark-color: transparent;
+        --watermark-image: none;
+        --spinner-image: none;
+        --buffering-image: none;
+        --pause-image: none;
+        --play-image: none;
+        --theme-hue: 185;
+        --progress-color: #20c5c9;
       }
 
       #receiver-loading {
@@ -111,10 +127,10 @@
         opacity: 1;
       }
     </style>
-    <script defer src="receiver.js?v=shaka-hls-1"></script>
+    <script defer src="receiver.js?v=caf-player-1"></script>
   </head>
   <body>
-    <video id="cast-media-element" class="castMediaElement" playsinline></video>
+    <cast-media-player></cast-media-player>
     <div id="receiver-loading" class="visible" aria-hidden="true">
       <div id="receiver-loading-brand">
         <img id="receiver-loading-artwork" alt="">
