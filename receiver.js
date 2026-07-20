@@ -109,6 +109,19 @@ function limitMasterPlaylist(manifest, maxHeight) {
   return filtered.join('\n');
 }
 
+// The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
+// explicit for receivers that do not infer it reliably from the playlist.
+playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
+  const media = loadRequest.media;
+  const customData = media?.customData || loadRequest.customData || {};
+  if (media?.contentType?.includes('mpegurl') &&
+      (customData.isLive || customData.isRecording)) {
+    media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
+    media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
+  }
+  return loadRequest;
+});
+
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   showLoading(loadRequest.media);
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
