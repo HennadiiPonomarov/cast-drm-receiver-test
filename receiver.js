@@ -1,5 +1,20 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
+const statusElement = document.getElementById('receiver-status');
+
+function showReceiverStatus(message) {
+  if (!statusElement) {
+    return;
+  }
+  statusElement.textContent = message;
+  statusElement.classList.add('visible');
+}
+
+function hideReceiverStatus() {
+  if (statusElement) {
+    statusElement.classList.remove('visible');
+  }
+}
 
 function limitMasterPlaylist(manifest, maxHeight) {
   const lines = manifest.split(/\r?\n/);
@@ -48,6 +63,19 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   }
 
   return playbackConfig;
+});
+
+// Keep errors observable on a physical receiver without displaying stream URLs
+// or credentials. This is needed to distinguish a receiver failure from a
+// server-side authorization or playback failure.
+playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
+  const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
+  console.error('[SWEET Receiver] Playback error', event);
+  showReceiverStatus(`Playback error: ${code}`);
+});
+
+playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  hideReceiverStatus();
 });
 
 const options = new cast.framework.CastReceiverOptions();
