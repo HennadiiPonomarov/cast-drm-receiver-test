@@ -89,6 +89,69 @@ function applyTrackSelection(message) {
     Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
 }
 
+function limitMasterPlaylist(manifest, maxHeight) {
+  const lines = manifest.split(/\r?\n/);
+  const filtered = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    const match = /^#EXT-X-STREAM-INF:.*RESOLUTION=\d+x(\d+)/.exec(line);
+    if (match && Number(match[1]) > maxHeight) {
+      // In an HLS master playlist the URI is the next line after STREAM-INF.
+      if (index + 1 < lines.length && !lines[index + 1].startsWith('#')) {
+        index += 1;
+      }
+      continue;
+    }
+    filtered.push(line);
+  }
+
+  return filtered.join('\n');
+}
+
+// The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
+// explicit for receivers that do not infer it reliably from the playlist.
+playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
+  const media = loadRequest.media;
+  const customData = media?.customData || loadRequest.customData || {};
+  if (media?.contentType?.includes('mpegurl') &&
+      (customData.isLive || customData.isRecording)) {
+    media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
+    media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
+  }
+  return loadRequest;
+});
+
+playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
+  showLoading(loadRequest.media);
+  const drm = loadRequest.media?.customData || loadRequest.customData || {};
+
+  if (drm.licenseUrl) {
+    playbackConfig.licenseUrl = drm.licenseUrl;
+    playbackConfig.protectionSystem = cast.framework.ContentProtection.WIDEVINE;
+  }
+
+  if (drm.licenseHeaders) {
+    playbackConfig.licenseRequestHandler = requestInfo => {
+      Object.assign(requestInfo.headers, drm.licenseHeaders);
+    };
+  }
+
+  if (Number.isFinite(drm.maxHeight)) {
+    playbackConfig.shakaConfig = {
+      ...(playbackConfig.shakaConfig || {}),
+      restrictions: {
+        ...((playbackConfig.shakaConfig || {}).restrictions || {}),
+        maxHeight: drm.maxHeight,
+      },
+    };
+    playbackConfig.manifestHandler = (manifest, responseInfo, shakaRequest) =>
+      limitMasterPlaylist(manifest, drm.maxHeight);
+  }
+
+  return playbackConfig;
+});
+
 // Keep errors observable on a physical receiver without displaying stream URLs
 // or credentials. This is needed to distinguish a receiver failure from a
 // server-side authorization or playback failure.
