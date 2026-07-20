@@ -1,5 +1,6 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
+const textTracksManager = playerManager.getTextTracksManager();
 
 function limitMasterPlaylist(manifest, maxHeight) {
   const lines = manifest.split(/\r?\n/);
@@ -49,6 +50,18 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
 
   return playbackConfig;
 });
+
+// CAF applies this itself, but setting it here keeps the style in sync with
+// the Shaka-backed HLS text renderer on all receiver implementations.
+playerManager.setMessageInterceptor(
+  cast.framework.messages.MessageType.EDIT_TRACKS_INFO,
+  request => {
+    if (request.textTrackStyle) {
+      textTracksManager.setTextTrackStyle(request.textTrackStyle);
+    }
+    return request;
+  },
+);
 
 const options = new cast.framework.CastReceiverOptions();
 options.useShakaForHls = true;
