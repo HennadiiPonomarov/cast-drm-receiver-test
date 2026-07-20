@@ -15,7 +15,19 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     };
   }
 
+  if (Number.isFinite(drm.maxHeight)) {
+    playbackConfig.shakaConfig = {
+      ...(playbackConfig.shakaConfig || {}),
+      restrictions: {
+        ...((playbackConfig.shakaConfig || {}).restrictions || {}),
+        maxHeight: drm.maxHeight,
+      },
+    };
+  }
+
   return playbackConfig;
 });
 
-context.start({useShakaForHls: true});
+const options = new cast.framework.CastReceiverOptions();
+options.useShakaForHls = true;
+context.start(options);
