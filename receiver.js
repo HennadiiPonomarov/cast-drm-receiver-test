@@ -6,6 +6,14 @@ const loadingElement = document.getElementById('receiver-loading');
 const loadingTitleElement = document.getElementById('receiver-loading-title');
 const loadingArtworkElement = document.getElementById('receiver-loading-artwork');
 
+function sendReceiverMessage(payload) {
+  try {
+    context.sendCustomMessage(TRACKS_CHANNEL, undefined, payload);
+  } catch (error) {
+    console.warn('[SWEET Receiver] Cannot notify sender', error);
+  }
+}
+
 function showReceiverStatus(message) {
   if (!statusElement) {
     return;
@@ -60,7 +68,7 @@ function sendTrackCatalog() {
   try {
     const audioTracks = playerManager.getAudioTracksManager().getTracks().map(toTrackPayload);
     const subtitleTracks = playerManager.getTextTracksManager().getTracks().map(toTrackPayload);
-    context.sendCustomMessage(TRACKS_CHANNEL, undefined, {
+    sendReceiverMessage({
       type: 'tracks',
       audio: audioTracks,
       subtitles: subtitleTracks,
@@ -139,6 +147,10 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   console.error('[SWEET Receiver] Playback error', event);
   showLoading();
   showReceiverStatus(`Playback error: ${code}`);
+  sendReceiverMessage({
+    type: 'receiver-error',
+    code: String(code),
+  });
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
