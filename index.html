@@ -6,12 +6,26 @@
     <title>SWEET Cast Lab Receiver</title>
     <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0d1820;
+      }
+
       cast-media-player {
-        --background-color: #0d1820;
         --background: #0d1820;
+        --background-color: #0d1820;
+        --logo-background: #0d1820;
+        --logo-color: #20c5c9;
+        --splash-background: #0d1820;
+        --splash-color: #0d1820;
         --progress-color: #20c5c9;
-        --splash-color: #f4f8fa;
         --watermark-color: #f4f8fa;
+        --font-family: Arial, sans-serif;
+        --theme-hue: 183;
       }
 
       #receiver-status {
