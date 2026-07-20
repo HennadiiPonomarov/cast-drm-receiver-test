@@ -2,6 +2,8 @@ const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const statusElement = document.getElementById('receiver-status');
 const loadingElement = document.getElementById('receiver-loading');
+const loadingTitleElement = document.getElementById('receiver-loading-title');
+const loadingArtworkElement = document.getElementById('receiver-loading-artwork');
 
 function showReceiverStatus(message) {
   if (!statusElement) {
@@ -17,7 +19,23 @@ function hideReceiverStatus() {
   }
 }
 
-function showLoading() {
+function showLoading(media) {
+  const metadata = media?.metadata || {};
+  const title = metadata.title || 'SWEET.TV';
+  const artwork = Array.isArray(metadata.images) ? metadata.images[0]?.url : null;
+
+  if (loadingTitleElement) {
+    loadingTitleElement.textContent = title;
+  }
+  if (loadingArtworkElement) {
+    if (artwork && /^https:\/\//.test(artwork)) {
+      loadingArtworkElement.src = artwork;
+      loadingArtworkElement.style.display = 'block';
+    } else {
+      loadingArtworkElement.removeAttribute('src');
+      loadingArtworkElement.style.display = 'none';
+    }
+  }
   if (loadingElement) {
     loadingElement.classList.add('visible');
   }
@@ -50,7 +68,7 @@ function limitMasterPlaylist(manifest, maxHeight) {
 }
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
-  showLoading();
+  showLoading(loadRequest.media);
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
   if (drm.licenseUrl) {
