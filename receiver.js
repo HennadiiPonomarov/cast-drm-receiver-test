@@ -70,6 +70,17 @@ function sendTrackCatalog() {
   }
 }
 
+function applyTrackSelection(message) {
+  const audioId = Number(message.audioId);
+  const subtitleId = Number(message.subtitleId);
+
+  if (Number.isFinite(audioId) && audioId >= 0) {
+    playerManager.getAudioTracksManager().setActiveById(audioId);
+  }
+  playerManager.getTextTracksManager().setActiveByIds(
+    Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
+}
+
 function limitMasterPlaylist(manifest, maxHeight) {
   const lines = manifest.split(/\r?\n/);
   const filtered = [];
@@ -141,6 +152,8 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
     const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (message?.type === 'request-tracks') {
       sendTrackCatalog();
+    } else if (message?.type === 'select-tracks') {
+      applyTrackSelection(message);
     }
   } catch (error) {
     console.warn('[SWEET Receiver] Invalid custom message', error);
