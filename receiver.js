@@ -186,7 +186,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-options.useShakaForHls = true;
+// These live streams use MPEG-TS HLS. Use CAF's stable HLS path on this
+// receiver family instead of opting in to the newer Shaka HLS pipeline.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
