@@ -159,6 +159,9 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     }
     playbackConfig.manifestHandler = manifest => {
       let normalized = drm.isLive ? normalizeLiveMasterPlaylist(manifest) : manifest;
+      if (drm.isLive && !Number.isFinite(drm.maxHeight)) {
+        normalized = limitMasterPlaylist(normalized, 360);
+      }
       if (Number.isFinite(drm.maxHeight)) {
         normalized = limitMasterPlaylist(normalized, drm.maxHeight);
       }
