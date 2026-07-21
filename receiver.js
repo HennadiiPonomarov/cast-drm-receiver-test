@@ -256,9 +256,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Keep the legacy CAF HLS path: it supports the service's MPEG-TS VOD streams
-// and the receiver's DRM configuration on this Android TV device.
-options.useShakaForHls = false;
+// MPL is deprecated and no longer receives critical HLS fixes. Shaka is the
+// current Cast HLS engine and handles both live MPEG-TS and Widevine streams.
+options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
