@@ -232,9 +232,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Shaka handles this live HLS master with external audio groups more reliably
-// than the legacy MPL path on Android TV receivers.
-options.useShakaForHls = true;
+// Keep the legacy CAF HLS path: it supports the service's MPEG-TS VOD streams
+// and the receiver's DRM configuration on this Android TV device.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
