@@ -113,32 +113,6 @@ function applyTrackSelection(message) {
     Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
 }
 
-function limitMasterPlaylist(manifest, maxHeight) {
-  const lines = manifest.split(/\r?\n/);
-  const filtered = [];
-
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
-    const match = /^#EXT-X-STREAM-INF:.*RESOLUTION=\d+x(\d+)/.exec(line);
-    if (match && Number(match[1]) > maxHeight) {
-      // In an HLS master playlist the URI is the next line after STREAM-INF.
-      if (index + 1 < lines.length && !lines[index + 1].startsWith('#')) {
-        index += 1;
-      }
-      continue;
-    }
-    filtered.push(line);
-  }
-
-  return filtered.join('\n');
-}
-
-function normalizeLiveMasterPlaylist(manifest) {
-  // SWEET's default audio entry uses "df", which is not an ISO-639 code.
-  // LANGUAGE is optional on EXT-X-MEDIA, so remove only that invalid attr.
-  return manifest.replace(/,LANGUAGE="df"(?=,|\r?$)/gm, '');
-}
-
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
 // explicit for receivers that do not infer it reliably from the playlist.
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
@@ -171,22 +145,13 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     };
   }
 
-  if (drm.isLive || Number.isFinite(drm.maxHeight)) {
-    if (Number.isFinite(drm.maxHeight)) {
-      playbackConfig.shakaConfig = {
-        ...(playbackConfig.shakaConfig || {}),
-        restrictions: {
-          ...((playbackConfig.shakaConfig || {}).restrictions || {}),
-          maxHeight: drm.maxHeight,
-        },
-      };
-    }
-    playbackConfig.manifestHandler = manifest => {
-      let normalized = drm.isLive ? normalizeLiveMasterPlaylist(manifest) : manifest;
-      if (Number.isFinite(drm.maxHeight)) {
-        normalized = limitMasterPlaylist(normalized, drm.maxHeight);
-      }
-      return normalized;
+  if (Number.isFinite(drm.maxHeight)) {
+    playbackConfig.shakaConfig = {
+      ...(playbackConfig.shakaConfig || {}),
+      restrictions: {
+        ...((playbackConfig.shakaConfig || {}).restrictions || {}),
+        maxHeight: drm.maxHeight,
+      },
     };
   }
 
