@@ -5,6 +5,30 @@ const statusElement = document.getElementById('receiver-status');
 const loadingElement = document.getElementById('receiver-loading');
 const loadingTitleElement = document.getElementById('receiver-loading-title');
 const loadingArtworkElement = document.getElementById('receiver-loading-artwork');
+const playerElement = document.querySelector('cast-media-player');
+
+// Apply the dark receiver shell directly to the custom element as well. CAF
+// keeps its player UI in a shadow root, so these variables must be set on the
+// element rather than only on body/html styles.
+if (playerElement) {
+  const playerStyles = {
+    '--background': '#000',
+    '--background-color': '#000',
+    '--background-image': 'none',
+    '--logo-background': '#000',
+    '--logo-color': '#000',
+    '--logo-image': 'none',
+    '--splash-background': '#000',
+    '--splash-color': '#000',
+    '--splash-image': 'none',
+    '--watermark-background': 'transparent',
+    '--watermark-color': 'transparent',
+    '--watermark-image': 'none',
+  };
+  Object.entries(playerStyles).forEach(([name, value]) => {
+    playerElement.style.setProperty(name, value);
+  });
+}
 
 function sendReceiverMessage(payload) {
   try {
