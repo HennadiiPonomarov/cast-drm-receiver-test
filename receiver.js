@@ -114,6 +114,10 @@ function limitMasterPlaylist(manifest, maxHeight) {
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
+  if (customData.isLive) {
+    media.streamType = cast.framework.messages.StreamType.LIVE;
+    media.duration = -1;
+  }
   if (media?.contentType?.includes('mpegurl') &&
       (customData.isLive || customData.isRecording)) {
     media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
@@ -152,17 +156,46 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   return playbackConfig;
 });
 
+function sanitizeErrorValue(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value)
+    .replace(/https?:\/\/[^\s"']+/gi, '<url>')
+    .replace(/Bearer\s+[^\s"']+/gi, 'Bearer <redacted>')
+    .slice(0, 240);
+}
+
+function getErrorDetails(event) {
+  const details = {};
+  for (const key of ['name', 'message', 'reason', 'errorCode', 'detailedErrorCode']) {
+    if (event && event[key] !== undefined) {
+      details[key] = sanitizeErrorValue(event[key]);
+    }
+  }
+  if (event?.error) {
+    for (const key of ['name', 'message', 'code', 'severity']) {
+      if (event.error[key] !== undefined) {
+        details[`error.${key}`] = sanitizeErrorValue(event.error[key]);
+      }
+    }
+  }
+  return details;
+}
+
 // Keep errors observable on a physical receiver without displaying stream URLs
-// or credentials. This is needed to distinguish a receiver failure from a
-// server-side authorization or playback failure.
+// or credentials. This distinguishes receiver configuration failures from
+// server-side authorization or media failures.
 playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
+  const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
   showLoading();
   showReceiverStatus(`Playback error: ${code}`);
   sendReceiverMessage({
     type: 'receiver-error',
     code: String(code),
+    details,
   });
 });
 
