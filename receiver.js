@@ -148,7 +148,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.streamType = cast.framework.messages.StreamType.LIVE;
     media.duration = -1;
   }
-  if (media?.contentType?.includes('mpegurl') &&
+  if (media?.contentType?.toLowerCase().includes('mpegurl') &&
       (customData.isLive || customData.isRecording)) {
     media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
     media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
