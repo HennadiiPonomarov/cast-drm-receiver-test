@@ -109,6 +109,12 @@ function limitMasterPlaylist(manifest, maxHeight) {
   return filtered.join('\n');
 }
 
+function normalizeLiveMasterPlaylist(manifest) {
+  // SWEET's default audio entry uses "df", which is not an ISO-639 code.
+  // LANGUAGE is optional on EXT-X-MEDIA, so remove only that invalid attr.
+  return manifest.replace(/,LANGUAGE="df"(?=,|\r?$)/gm, '');
+}
+
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
 // explicit for receivers that do not infer it reliably from the playlist.
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
@@ -141,16 +147,23 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     };
   }
 
-  if (Number.isFinite(drm.maxHeight)) {
-    playbackConfig.shakaConfig = {
-      ...(playbackConfig.shakaConfig || {}),
-      restrictions: {
-        ...((playbackConfig.shakaConfig || {}).restrictions || {}),
-        maxHeight: drm.maxHeight,
-      },
+  if (drm.isLive || Number.isFinite(drm.maxHeight)) {
+    if (Number.isFinite(drm.maxHeight)) {
+      playbackConfig.shakaConfig = {
+        ...(playbackConfig.shakaConfig || {}),
+        restrictions: {
+          ...((playbackConfig.shakaConfig || {}).restrictions || {}),
+          maxHeight: drm.maxHeight,
+        },
+      };
+    }
+    playbackConfig.manifestHandler = manifest => {
+      let normalized = drm.isLive ? normalizeLiveMasterPlaylist(manifest) : manifest;
+      if (Number.isFinite(drm.maxHeight)) {
+        normalized = limitMasterPlaylist(normalized, drm.maxHeight);
+      }
+      return normalized;
     };
-    playbackConfig.manifestHandler = (manifest, responseInfo, shakaRequest) =>
-      limitMasterPlaylist(manifest, drm.maxHeight);
   }
 
   return playbackConfig;
