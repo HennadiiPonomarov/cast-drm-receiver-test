@@ -134,6 +134,12 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   showLoading(loadRequest.media);
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
+  // A PlaybackConfig can be reused between loads. Clear the DRM-specific
+  // values first so a clear channel cannot inherit a prior movie's license.
+  playbackConfig.licenseUrl = undefined;
+  playbackConfig.protectionSystem = undefined;
+  playbackConfig.licenseRequestHandler = undefined;
+
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
     playbackConfig.protectionSystem = cast.framework.ContentProtection.WIDEVINE;
@@ -221,9 +227,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// MPL is deprecated and no longer receives critical HLS fixes. Shaka is the
-// current Cast HLS engine and handles both live MPEG-TS and Widevine streams.
-options.useShakaForHls = true;
+// The documented default HLS path is the Cast Media Player Library. Shaka for
+// HLS is opt-in and still has compatibility caveats on Cast receivers.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
