@@ -122,7 +122,11 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.streamType = cast.framework.messages.StreamType.LIVE;
     media.duration = -1;
   }
+  // Clear live and catch-up streams use MPEG-TS. DRM streams may use a
+  // different HLS segment profile, so never force the Discovery profile onto
+  // a Widevine load.
   if (media?.contentType?.toLowerCase().includes('mpegurl') &&
+      !customData.licenseUrl &&
       (customData.isLive || customData.isRecording)) {
     media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
     media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
