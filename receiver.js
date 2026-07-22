@@ -146,10 +146,21 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackConfig.licenseUrl = undefined;
   playbackConfig.protectionSystem = undefined;
   playbackConfig.licenseRequestHandler = undefined;
+  playbackConfig.shakaConfig = undefined;
 
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
     playbackConfig.protectionSystem = cast.framework.ContentProtection.WIDEVINE;
+    // CAF maps licenseUrl for the legacy player. With Shaka HLS enabled, also
+    // provide the EME key-system mapping explicitly: live Widevine HLS uses
+    // the same signed license endpoint as VOD, but is initialized by Shaka.
+    playbackConfig.shakaConfig = {
+      drm: {
+        servers: {
+          'com.widevine.alpha': drm.licenseUrl,
+        },
+      },
+    };
   }
 
   if (drm.licenseHeaders) {
@@ -194,6 +205,14 @@ function getErrorDetails(event) {
         details[`error.${key}`] = sanitizeErrorValue(event.error[key]);
       }
     }
+  }
+  try {
+    const serializedEvent = JSON.stringify(event);
+    if (serializedEvent && serializedEvent !== '{}') {
+      details.event = sanitizeErrorValue(serializedEvent);
+    }
+  } catch (_) {
+    // Error events may contain non-serializable platform objects.
   }
   return details;
 }
