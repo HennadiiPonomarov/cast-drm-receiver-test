@@ -253,10 +253,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Use Shaka for HLS. The service's VOD and Widevine HLS manifests require the
-// current HLS pipeline; the legacy Cast player only succeeds for the clear
-// live MPEG-TS stream on this receiver.
-options.useShakaForHls = true;
+// Let CAF use its native HLS pipeline. Google Cast documents this path for
+// live SAMPLE-AES Widevine HLS; Shaka remains available for other protocols.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
