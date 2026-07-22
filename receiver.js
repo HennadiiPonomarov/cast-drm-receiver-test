@@ -227,9 +227,10 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// The documented default HLS path is the Cast Media Player Library. Shaka for
-// HLS is opt-in and still has compatibility caveats on Cast receivers.
-options.useShakaForHls = false;
+// Use Shaka for HLS. The service's VOD and Widevine HLS manifests require the
+// current HLS pipeline; the legacy Cast player only succeeds for the clear
+// live MPEG-TS stream on this receiver.
+options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
