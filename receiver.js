@@ -123,12 +123,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (customData.licenseUrl && customData.isLive) {
-      // SWEET Widevine HLS uses CMAF/fMP4 segments (#EXT-X-MAP and
-      // SAMPLE-AES) for DRM live channels.
-      media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
-      media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
-    } else if (customData.isLive || customData.isRecording) {
+    if (!customData.licenseUrl && (customData.isLive || customData.isRecording)) {
       // Clear live and catch-up streams use MPEG-TS.
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
