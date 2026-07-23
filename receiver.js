@@ -253,10 +253,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// The service's DRM VOD HLS manifests need the Shaka HLS pipeline on the
-// tested Cast receiver. Keep it enabled globally; the native pipeline leaves
-// DRM VOD stuck in loading state on this device.
-options.useShakaForHls = true;
+// Use the platform HLS player for clear transport-stream content. Some DVR
+// manifests are not accepted by the Shaka HLS pipeline on this receiver.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
