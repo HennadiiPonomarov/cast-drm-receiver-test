@@ -253,9 +253,10 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Use the platform HLS player for clear transport-stream content. Some DVR
-// manifests are not accepted by the Shaka HLS pipeline on this receiver.
-options.useShakaForHls = false;
+// Keep Shaka enabled for HLS. The service returns a Cast-specific DVR
+// manifest with the audio rendition declared in the master playlist; the
+// platform HLS path rejects that manifest on some Google Cast devices.
+options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
