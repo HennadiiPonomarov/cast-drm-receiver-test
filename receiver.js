@@ -253,9 +253,10 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Let CAF use its native HLS pipeline. Google Cast documents this path for
-// live SAMPLE-AES Widevine HLS; Shaka remains available for other protocols.
-options.useShakaForHls = false;
+// The service's DRM VOD HLS manifests need the Shaka HLS pipeline on the
+// tested Cast receiver. Keep it enabled globally; the native pipeline leaves
+// DRM VOD stuck in loading state on this device.
+options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
