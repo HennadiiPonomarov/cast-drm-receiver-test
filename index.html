@@ -23,9 +23,10 @@
         --background: #000;
         --background-color: #000;
         --background-image: none;
-        --logo-background: #000;
-        --logo-color: #000;
-        --logo-image: none;
+        /* CAF shows this mark only in its controls/idle UI, never over video. */
+        --logo-background: transparent;
+        --logo-color: transparent;
+        --logo-image: url('assets/sweet-tv-logo-light.svg');
         --splash-background: #000;
         --splash-color: #000;
         --splash-image: none;
@@ -114,7 +115,7 @@
         opacity: 1;
       }
     </style>
-    <script defer src="receiver.js?v=clean-loading-3"></script>
+    <script defer src="receiver.js?v=official-logo-4"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
