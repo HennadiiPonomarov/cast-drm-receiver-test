@@ -123,13 +123,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (customData.licenseUrl && customData.isLive) {
-      // SWEET protected live HLS is CMAF/fMP4 (#EXT-X-MAP + SAMPLE-AES).
-      // CAF otherwise assumes MPEG-TS and the video decoder renders corrupt
-      // frames even though the Widevine license was acquired successfully.
-      media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
-      media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
-    } else if (!customData.licenseUrl && (customData.isLive || customData.isRecording)) {
+    if (!customData.licenseUrl && (customData.isLive || customData.isRecording)) {
       // Clear live and catch-up streams use MPEG-TS.
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
@@ -254,10 +248,10 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Use Cast's stable HLS pipeline. Shaka HLS is still an opt-in path with
-// receiver-specific compatibility gaps; Widevine live streams must first be
-// validated on the platform player before enabling it again.
-options.useShakaForHls = false;
+// Widevine CMAF HLS must use Shaka. MPL is legacy and stalls after buffering
+// encrypted fMP4 segments on this receiver. HLS segment format fields above
+// are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
+options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
