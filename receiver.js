@@ -248,10 +248,10 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// Keep Shaka enabled for HLS. The service returns a Cast-specific DVR
-// manifest with the audio rendition declared in the master playlist; the
-// platform HLS path rejects that manifest on some Google Cast devices.
-options.useShakaForHls = true;
+// Use Cast's stable HLS pipeline. Shaka HLS is still an opt-in path with
+// receiver-specific compatibility gaps; Widevine live streams must first be
+// validated on the platform player before enabling it again.
+options.useShakaForHls = false;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
