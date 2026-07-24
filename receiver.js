@@ -2,9 +2,8 @@ const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
-const loadingElement = document.getElementById('receiver-loading');
-const loadingTitleElement = document.getElementById('receiver-loading-title');
-const loadingArtworkElement = document.getElementById('receiver-loading-artwork');
+const loaderElement = document.getElementById('receiver-loader');
+const loaderLabelElement = document.getElementById('receiver-loader-label');
 const playerElement = document.querySelector('cast-media-player');
 
 // Apply the dark receiver shell directly to the custom element as well. CAF
@@ -49,31 +48,18 @@ function hideReceiverStatus() {
   }
 }
 
-function showLoading(media) {
-  const metadata = media?.metadata || {};
-  const title = metadata.title || 'SWEET.TV';
-  const artwork = Array.isArray(metadata.images) ? metadata.images[0]?.url : null;
-
-  if (loadingTitleElement) {
-    loadingTitleElement.textContent = title;
+function showLoader(label = 'Загрузка') {
+  if (loaderLabelElement) {
+    loaderLabelElement.textContent = label;
   }
-  if (loadingArtworkElement) {
-    if (artwork && /^https:\/\//.test(artwork)) {
-      loadingArtworkElement.src = artwork;
-      loadingArtworkElement.style.display = 'block';
-    } else {
-      loadingArtworkElement.removeAttribute('src');
-      loadingArtworkElement.style.display = 'none';
-    }
-  }
-  if (loadingElement) {
-    loadingElement.classList.add('visible');
+  if (loaderElement) {
+    loaderElement.classList.add('visible');
   }
 }
 
-function hideLoading() {
-  if (loadingElement) {
-    loadingElement.classList.remove('visible');
+function hideLoader() {
+  if (loaderElement) {
+    loaderElement.classList.remove('visible');
   }
 }
 
@@ -130,7 +116,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 });
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
-  showLoading(loadRequest.media);
+  showLoader('Загрузка');
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
   // A PlaybackConfig can be reused between loads. Clear the DRM-specific
@@ -216,7 +202,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
-  showLoading();
+  showLoader('Не удалось воспроизвести');
   showReceiverStatus(`Playback error: ${code}`);
   sendReceiverMessage({
     type: 'receiver-error',
@@ -226,9 +212,17 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
-  hideLoading();
+  hideLoader();
   hideReceiverStatus();
   sendTrackCatalog();
+});
+
+playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event => {
+  if (event.isBuffering) {
+    showLoader('Буферизация');
+  } else {
+    hideLoader();
+  }
 });
 
 context.addCustomMessageListener(TRACKS_CHANNEL, event => {
