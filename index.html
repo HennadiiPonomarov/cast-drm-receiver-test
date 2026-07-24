@@ -6,6 +6,30 @@
     <title>SWEET Cast Lab Receiver</title>
     <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <style>
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url('assets/fonts/inter-regular.ttf') format('truetype');
+      }
+
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 600;
+        font-display: swap;
+        src: url('assets/fonts/inter-semibold.ttf') format('truetype');
+      }
+
+      @font-face {
+        font-family: 'Inter';
+        font-style: normal;
+        font-weight: 700;
+        font-display: swap;
+        src: url('assets/fonts/inter-bold.ttf') format('truetype');
+      }
+
       html,
       body {
         width: 100%;
@@ -13,6 +37,7 @@
         margin: 0;
         overflow: hidden;
         background: #000;
+        font-family: 'Inter', Arial, sans-serif;
         /* This removes the default CAF playback watermark over video. */
         --playback-logo-image: none;
       }
@@ -34,7 +59,7 @@
         --splash-color: #000;
         --splash-image: url('assets/sweet-tv-logo-light.svg');
         --splash-size: 360px auto;
-        --font-family: Arial, Helvetica, sans-serif;
+        --font-family: 'Inter', Arial, sans-serif;
         --theme-hue: 185;
         --progress-color: #20c5c9;
         --break-color: #20c5c9;
@@ -99,7 +124,7 @@
         border-radius: 4px;
         background: rgba(13, 24, 32, 0.94);
         color: #f4f8fa;
-        font: 600 20px/1.3 Arial, Helvetica, sans-serif;
+        font: 600 20px/1.3 'Inter', Arial, sans-serif;
         opacity: 0;
         transform: translate(-50%, 10px);
         transition: opacity 180ms ease, transform 180ms ease;
@@ -116,7 +141,7 @@
         border-left-color: #ff6b6b;
       }
     </style>
-    <script defer src="receiver.js?v=receiver-polish-1"></script>
+    <script defer src="receiver.js?v=receiver-inter-1"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
