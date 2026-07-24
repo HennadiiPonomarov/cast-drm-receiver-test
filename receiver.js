@@ -127,17 +127,19 @@ function sendReceiverMessage(payload) {
   }
 }
 
-function showReceiverStatus(message) {
+function showReceiverStatus(message, type = 'info') {
   if (!statusElement) {
     return;
   }
   statusElement.textContent = message;
+  statusElement.classList.toggle('error', type === 'error');
   statusElement.classList.add('visible');
 }
 
 function hideReceiverStatus() {
   if (statusElement) {
     statusElement.classList.remove('visible');
+    statusElement.classList.remove('error');
   }
 }
 
@@ -296,7 +298,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
   showLoader(translate('cannotPlay'));
-  showReceiverStatus(`${translate('playbackError')}: ${code}`);
+  showReceiverStatus(`${translate('playbackError')}: ${code}`, 'error');
   sendReceiverMessage({
     type: 'receiver-error',
     code: String(code),
