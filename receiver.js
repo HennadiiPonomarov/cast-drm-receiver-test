@@ -109,10 +109,10 @@ if (playerElement) {
     '--background-image': 'none',
     '--logo-background': 'transparent',
     '--logo-color': 'transparent',
-    '--logo-image': "url('assets/sweet-tv-logo-light.svg')",
+    '--logo-image': 'none',
     '--splash-background': '#000',
     '--splash-color': '#000',
-    '--splash-image': "url('assets/sweet-tv-logo-light.svg')",
+    '--splash-image': 'none',
   };
   Object.entries(playerStyles).forEach(([name, value]) => {
     playerElement.style.setProperty(name, value);
