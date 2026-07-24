@@ -6,6 +6,99 @@ const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const playerElement = document.querySelector('cast-media-player');
 
+// A Web Receiver runs in the Chromecast/TV browser. navigator.language is
+// therefore the receiver device locale, independent of the sender phone.
+const receiverLocale = (navigator.language || 'en').toLowerCase();
+const translations = {
+  en: {
+    connecting: 'Connecting to TV', loading: 'Loading', buffering: 'Buffering',
+    cannotPlay: 'Unable to play', playbackError: 'Playback error',
+  },
+  uk: {
+    connecting: 'Підключення до телевізора', loading: 'Завантаження', buffering: 'Буферизація',
+    cannotPlay: 'Не вдалося відтворити', playbackError: 'Помилка відтворення',
+  },
+  ru: {
+    connecting: 'Подключение к телевизору', loading: 'Загрузка', buffering: 'Буферизация',
+    cannotPlay: 'Не удалось воспроизвести', playbackError: 'Ошибка воспроизведения',
+  },
+  sk: {
+    connecting: 'Pripájanie k televízoru', loading: 'Načítava sa', buffering: 'Ukladanie do vyrovnávacej pamäte',
+    cannotPlay: 'Prehrávanie nie je možné', playbackError: 'Chyba prehrávania',
+  },
+  cs: {
+    connecting: 'Připojování k televizoru', loading: 'Načítání', buffering: 'Ukládání do vyrovnávací paměti',
+    cannotPlay: 'Nelze přehrát', playbackError: 'Chyba přehrávání',
+  },
+  hu: {
+    connecting: 'Csatlakozás a TV-hez', loading: 'Betöltés', buffering: 'Pufferelés',
+    cannotPlay: 'Nem játszható le', playbackError: 'Lejátszási hiba',
+  },
+  bg: {
+    connecting: 'Свързване с телевизора', loading: 'Зареждане', buffering: 'Буфериране',
+    cannotPlay: 'Възпроизвеждането е невъзможно', playbackError: 'Грешка при възпроизвеждане',
+  },
+  pl: {
+    connecting: 'Łączenie z telewizorem', loading: 'Ładowanie', buffering: 'Buforowanie',
+    cannotPlay: 'Nie można odtworzyć', playbackError: 'Błąd odtwarzania',
+  },
+  ro: {
+    connecting: 'Conectare la televizor', loading: 'Se încarcă', buffering: 'Se stochează în buffer',
+    cannotPlay: 'Redarea nu este disponibilă', playbackError: 'Eroare de redare',
+  },
+  az: {
+    connecting: 'Televizora qoşulur', loading: 'Yüklənir', buffering: 'Buferlənir',
+    cannotPlay: 'Oxutmaq mümkün deyil', playbackError: 'Oxutma xətası',
+  },
+  sq: {
+    connecting: 'Po lidhet me televizorin', loading: 'Po ngarkohet', buffering: 'Po ruhet në tampon',
+    cannotPlay: 'Nuk mund të luhet', playbackError: 'Gabim në riprodhim',
+  },
+  lv: {
+    connecting: 'Savienojuma izveide ar televizoru', loading: 'Notiek ielāde', buffering: 'Buferizācija',
+    cannotPlay: 'Neizdevās atskaņot', playbackError: 'Atskaņošanas kļūda',
+  },
+  et: {
+    connecting: 'Teleriga ühendamine', loading: 'Laadimine', buffering: 'Puhverdamine',
+    cannotPlay: 'Esitamine ebaõnnestus', playbackError: 'Esituse tõrge',
+  },
+  el: {
+    connecting: 'Σύνδεση με την τηλεόραση', loading: 'Φόρτωση', buffering: 'Προσωρινή αποθήκευση',
+    cannotPlay: 'Δεν είναι δυνατή η αναπαραγωγή', playbackError: 'Σφάλμα αναπαραγωγής',
+  },
+  lt: {
+    connecting: 'Jungiama prie televizoriaus', loading: 'Įkeliama', buffering: 'Buferizuojama',
+    cannotPlay: 'Nepavyko paleisti', playbackError: 'Atkūrimo klaida',
+  },
+  sr: {
+    connecting: 'Povezivanje sa televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
+  },
+  mk: {
+    connecting: 'Поврзување со телевизорот', loading: 'Се вчитува', buffering: 'Баферизација',
+    cannotPlay: 'Не може да се репродуцира', playbackError: 'Грешка при репродукција',
+  },
+  bs: {
+    connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
+  },
+  sl: {
+    connecting: 'Povezovanje s televizorjem', loading: 'Nalaganje', buffering: 'Medpomnjenje',
+    cannotPlay: 'Predvajanje ni mogoče', playbackError: 'Napaka pri predvajanju',
+  },
+  hr: {
+    connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Međuspremanje',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Pogreška pri reprodukciji',
+  },
+};
+
+function translate(key) {
+  const language = receiverLocale.split('-')[0];
+  return (translations[language] || translations.en)[key] || translations.en[key];
+}
+
+document.documentElement.lang = receiverLocale;
+
 // Apply the dark receiver shell directly to the custom element as well. CAF
 // keeps its player UI in a shadow root, so these variables must be set on the
 // element rather than only on body/html styles.
@@ -48,7 +141,7 @@ function hideReceiverStatus() {
   }
 }
 
-function showLoader(label = 'Загрузка') {
+function showLoader(label = translate('loading')) {
   if (loaderLabelElement) {
     loaderLabelElement.textContent = label;
   }
@@ -116,7 +209,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 });
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
-  showLoader('Загрузка');
+  showLoader();
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
   // A PlaybackConfig can be reused between loads. Clear the DRM-specific
@@ -202,8 +295,8 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
-  showLoader('Не удалось воспроизвести');
-  showReceiverStatus(`Playback error: ${code}`);
+  showLoader(translate('cannotPlay'));
+  showReceiverStatus(`${translate('playbackError')}: ${code}`);
   sendReceiverMessage({
     type: 'receiver-error',
     code: String(code),
@@ -219,7 +312,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
 
 playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event => {
   if (event.isBuffering) {
-    showLoader('Буферизация');
+    showLoader(translate('buffering'));
   } else {
     hideLoader();
   }
@@ -247,3 +340,5 @@ options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
 context.start(options);
+
+showLoader(translate('connecting'));
