@@ -113,6 +113,8 @@ if (playerElement) {
     '--splash-background': '#000',
     '--splash-color': '#000',
     '--splash-image': 'none',
+    '--spinner-image': 'none',
+    '--buffering-image': 'none',
   };
   Object.entries(playerStyles).forEach(([name, value]) => {
     playerElement.style.setProperty(name, value);
