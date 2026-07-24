@@ -94,14 +94,14 @@
 
       #receiver-loader-activity {
         position: absolute;
-        top: 7vh;
+        top: 50%;
         left: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 14px;
         max-width: 76vw;
-        transform: translate(-50%, -14px);
+        transform: translate(-50%, calc(-50% - 14px));
         transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
       }
 
@@ -110,7 +110,7 @@
       }
 
       #receiver-loader.visible #receiver-loader-activity {
-        transform: translate(-50%, 0);
+        transform: translate(-50%, -50%);
       }
 
       .receiver-loader-spinner {
@@ -166,7 +166,7 @@
         border-left-color: #ff6b6b;
       }
     </style>
-    <script defer src="receiver.js?v=receiver-no-caf-splash-1"></script>
+    <script defer src="receiver.js?v=receiver-centered-loader-1"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
