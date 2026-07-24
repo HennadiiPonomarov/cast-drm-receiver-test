@@ -13,6 +13,9 @@
         margin: 0;
         overflow: hidden;
         background: #0d1820;
+        /* CAF renders this compact brand mark in the upper-left while media
+           is playing. The built-in player has no controls-only logo slot. */
+        --playback-logo-image: url('assets/sweet-tv-logo-light.svg');
       }
 
       cast-media-player {
@@ -27,6 +30,7 @@
         --logo-background: transparent;
         --logo-color: transparent;
         --logo-image: url('assets/sweet-tv-logo-light.svg');
+        --logo-size: 360px auto;
         --splash-background: #000;
         --splash-color: #000;
         --splash-image: none;
@@ -115,7 +119,7 @@
         opacity: 1;
       }
     </style>
-    <script defer src="receiver.js?v=official-logo-4"></script>
+    <script defer src="receiver.js?v=playback-logo-5"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
