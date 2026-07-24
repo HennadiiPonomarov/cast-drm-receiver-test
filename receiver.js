@@ -109,10 +109,10 @@ if (playerElement) {
     '--background-image': 'none',
     '--logo-background': 'transparent',
     '--logo-color': 'transparent',
-    '--logo-image': 'none',
+    '--logo-image': "url('assets/transparent.svg')",
     '--splash-background': '#000',
     '--splash-color': '#000',
-    '--splash-image': 'none',
+    '--splash-image': "url('assets/transparent.svg')",
     '--spinner-image': 'none',
     '--buffering-image': 'none',
   };
