@@ -164,31 +164,8 @@
         border-left-color: #ff6b6b;
       }
 
-      #receiver-idle {
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        z-index: 15;
-        max-width: 72vw;
-        color: #f3f8f9;
-        font: 500 25px/1.35 'Inter', Arial, sans-serif;
-        text-align: center;
-        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
-        transform: translate(-50%, -50%);
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-        transition: opacity 460ms cubic-bezier(0.22, 1, 0.36, 1),
-          visibility 0s linear 460ms;
-      }
-
-      #receiver-idle.visible {
-        opacity: 1;
-        visibility: visible;
-        transition-delay: 0s;
-      }
     </style>
-    <script defer src="receiver.js?v=receiver-idle-prompt-1"></script>
+    <script defer src="receiver.js?v=receiver-clean-idle-1"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
@@ -199,6 +176,5 @@
       </div>
     </div>
     <div id="receiver-status" role="status" aria-live="polite"></div>
-    <div id="receiver-idle" role="status" aria-live="polite"></div>
   </body>
 </html>

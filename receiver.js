@@ -4,7 +4,6 @@ const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
-const idleElement = document.getElementById('receiver-idle');
 const playerElement = document.querySelector('cast-media-player');
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
@@ -13,83 +12,83 @@ const receiverLocale = (navigator.language || 'en').toLowerCase();
 const translations = {
   en: {
     connecting: 'Connecting to TV', loading: 'Loading', buffering: 'Buffering',
-    cannotPlay: 'Unable to play', playbackError: 'Playback error', chooseContent: 'Choose content on your phone',
+    cannotPlay: 'Unable to play', playbackError: 'Playback error',
   },
   uk: {
     connecting: 'Підключення до телевізора', loading: 'Завантаження', buffering: 'Буферизація',
-    cannotPlay: 'Не вдалося відтворити', playbackError: 'Помилка відтворення', chooseContent: 'Оберіть контент на телефоні',
+    cannotPlay: 'Не вдалося відтворити', playbackError: 'Помилка відтворення',
   },
   ru: {
     connecting: 'Подключение к телевизору', loading: 'Загрузка', buffering: 'Буферизация',
-    cannotPlay: 'Не удалось воспроизвести', playbackError: 'Ошибка воспроизведения', chooseContent: 'Выберите контент на телефоне',
+    cannotPlay: 'Не удалось воспроизвести', playbackError: 'Ошибка воспроизведения',
   },
   sk: {
     connecting: 'Pripájanie k televízoru', loading: 'Načítava sa', buffering: 'Ukladanie do vyrovnávacej pamäte',
-    cannotPlay: 'Prehrávanie nie je možné', playbackError: 'Chyba prehrávania', chooseContent: 'Vyberte obsah v telefóne',
+    cannotPlay: 'Prehrávanie nie je možné', playbackError: 'Chyba prehrávania',
   },
   cs: {
     connecting: 'Připojování k televizoru', loading: 'Načítání', buffering: 'Ukládání do vyrovnávací paměti',
-    cannotPlay: 'Nelze přehrát', playbackError: 'Chyba přehrávání', chooseContent: 'Vyberte obsah v telefonu',
+    cannotPlay: 'Nelze přehrát', playbackError: 'Chyba přehrávání',
   },
   hu: {
     connecting: 'Csatlakozás a TV-hez', loading: 'Betöltés', buffering: 'Pufferelés',
-    cannotPlay: 'Nem játszható le', playbackError: 'Lejátszási hiba', chooseContent: 'Válasszon tartalmat a telefonján',
+    cannotPlay: 'Nem játszható le', playbackError: 'Lejátszási hiba',
   },
   bg: {
     connecting: 'Свързване с телевизора', loading: 'Зареждане', buffering: 'Буфериране',
-    cannotPlay: 'Възпроизвеждането е невъзможно', playbackError: 'Грешка при възпроизвеждане', chooseContent: 'Изберете съдържание на телефона си',
+    cannotPlay: 'Възпроизвеждането е невъзможно', playbackError: 'Грешка при възпроизвеждане',
   },
   pl: {
     connecting: 'Łączenie z telewizorem', loading: 'Ładowanie', buffering: 'Buforowanie',
-    cannotPlay: 'Nie można odtworzyć', playbackError: 'Błąd odtwarzania', chooseContent: 'Wybierz treść na telefonie',
+    cannotPlay: 'Nie można odtworzyć', playbackError: 'Błąd odtwarzania',
   },
   ro: {
     connecting: 'Conectare la televizor', loading: 'Se încarcă', buffering: 'Se stochează în buffer',
-    cannotPlay: 'Redarea nu este disponibilă', playbackError: 'Eroare de redare', chooseContent: 'Alege conținut pe telefon',
+    cannotPlay: 'Redarea nu este disponibilă', playbackError: 'Eroare de redare',
   },
   az: {
     connecting: 'Televizora qoşulur', loading: 'Yüklənir', buffering: 'Buferlənir',
-    cannotPlay: 'Oxutmaq mümkün deyil', playbackError: 'Oxutma xətası', chooseContent: 'Telefonda məzmun seçin',
+    cannotPlay: 'Oxutmaq mümkün deyil', playbackError: 'Oxutma xətası',
   },
   sq: {
     connecting: 'Po lidhet me televizorin', loading: 'Po ngarkohet', buffering: 'Po ruhet në tampon',
-    cannotPlay: 'Nuk mund të luhet', playbackError: 'Gabim në riprodhim', chooseContent: 'Zgjidh përmbajtjen në telefon',
+    cannotPlay: 'Nuk mund të luhet', playbackError: 'Gabim në riprodhim',
   },
   lv: {
     connecting: 'Savienojuma izveide ar televizoru', loading: 'Notiek ielāde', buffering: 'Buferizācija',
-    cannotPlay: 'Neizdevās atskaņot', playbackError: 'Atskaņošanas kļūda', chooseContent: 'Izvēlieties saturu tālrunī',
+    cannotPlay: 'Neizdevās atskaņot', playbackError: 'Atskaņošanas kļūda',
   },
   et: {
     connecting: 'Teleriga ühendamine', loading: 'Laadimine', buffering: 'Puhverdamine',
-    cannotPlay: 'Esitamine ebaõnnestus', playbackError: 'Esituse tõrge', chooseContent: 'Valige sisu telefonis',
+    cannotPlay: 'Esitamine ebaõnnestus', playbackError: 'Esituse tõrge',
   },
   el: {
     connecting: 'Σύνδεση με την τηλεόραση', loading: 'Φόρτωση', buffering: 'Προσωρινή αποθήκευση',
-    cannotPlay: 'Δεν είναι δυνατή η αναπαραγωγή', playbackError: 'Σφάλμα αναπαραγωγής', chooseContent: 'Επιλέξτε περιεχόμενο στο τηλέφωνο',
+    cannotPlay: 'Δεν είναι δυνατή η αναπαραγωγή', playbackError: 'Σφάλμα αναπαραγωγής',
   },
   lt: {
     connecting: 'Jungiama prie televizoriaus', loading: 'Įkeliama', buffering: 'Buferizuojama',
-    cannotPlay: 'Nepavyko paleisti', playbackError: 'Atkūrimo klaida', chooseContent: 'Pasirinkite turinį telefone',
+    cannotPlay: 'Nepavyko paleisti', playbackError: 'Atkūrimo klaida',
   },
   sr: {
     connecting: 'Povezivanje sa televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
-    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji', chooseContent: 'Izaberite sadržaj na telefonu',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
   },
   mk: {
     connecting: 'Поврзување со телевизорот', loading: 'Се вчитува', buffering: 'Баферизација',
-    cannotPlay: 'Не може да се репродуцира', playbackError: 'Грешка при репродукција', chooseContent: 'Изберете содржина на телефонот',
+    cannotPlay: 'Не може да се репродуцира', playbackError: 'Грешка при репродукција',
   },
   bs: {
     connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
-    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji', chooseContent: 'Odaberite sadržaj na telefonu',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
   },
   sl: {
     connecting: 'Povezovanje s televizorjem', loading: 'Nalaganje', buffering: 'Medpomnjenje',
-    cannotPlay: 'Predvajanje ni mogoče', playbackError: 'Napaka pri predvajanju', chooseContent: 'Izberite vsebino v telefonu',
+    cannotPlay: 'Predvajanje ni mogoče', playbackError: 'Napaka pri predvajanju',
   },
   hr: {
     connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Međuspremanje',
-    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Pogreška pri reprodukciji', chooseContent: 'Odaberite sadržaj na telefonu',
+    cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Pogreška pri reprodukciji',
   },
 };
 
@@ -159,19 +158,6 @@ function hideLoader() {
   }
 }
 
-function showIdlePrompt() {
-  if (idleElement) {
-    idleElement.textContent = translate('chooseContent');
-    idleElement.classList.add('visible');
-  }
-}
-
-function hideIdlePrompt() {
-  if (idleElement) {
-    idleElement.classList.remove('visible');
-  }
-}
-
 function toTrackPayload(track) {
   return {
     id: track.trackId,
@@ -225,7 +211,6 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 });
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
-  hideIdlePrompt();
   showLoader();
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
@@ -359,4 +344,3 @@ options.customNamespaces = {
 context.start(options);
 
 hideLoader();
-showIdlePrompt();
