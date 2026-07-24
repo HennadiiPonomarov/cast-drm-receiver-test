@@ -41,22 +41,9 @@
       }
 
       #receiver-loading {
-        position: fixed;
-        inset: 0;
-        z-index: 5;
-        display: flex;
-        align-items: flex-end;
-        justify-content: flex-start;
-        padding: 0 7vw 5vh;
-        box-sizing: border-box;
-        background: transparent;
-        color: #f4f8fa;
-        font-family: Arial, sans-serif;
-        letter-spacing: 0;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 180ms ease, visibility 180ms ease;
-        pointer-events: none;
+        /* CAF already renders content metadata while a stream starts. Keep
+           the custom receiver free of a second, duplicate loading panel. */
+        display: none !important;
       }
 
       #receiver-loading.visible {
@@ -127,7 +114,7 @@
         opacity: 1;
       }
     </style>
-    <script defer src="receiver.js?v=shaka-drm-live-2"></script>
+    <script defer src="receiver.js?v=clean-loading-3"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
