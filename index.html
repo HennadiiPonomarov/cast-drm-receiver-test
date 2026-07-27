@@ -60,29 +60,14 @@
         --playback-logo-image: none;
       }
 
-      cast-media-player {
+      #receiver-video {
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        --background: #000;
-        --background-color: #000;
-        --background-image: none;
-        /* CAF shows this mark only in its controls/idle UI, never over video. */
-        --logo-background: transparent;
-        --logo-color: transparent;
-        --logo-image: url('assets/transparent.svg');
-        --logo-size: 1px 1px;
-        --splash-background: #000;
-        --splash-color: #000;
-        --splash-image: url('assets/transparent.svg');
-        --splash-size: 1px 1px;
-        --font-family: 'Inter', Arial, sans-serif;
-        --theme-hue: 185;
-        --progress-color: #20c5c9;
-        --break-color: #20c5c9;
-        --spinner-image: none;
-        --buffering-image: none;
+        border: 0;
+        background: #000;
+        object-fit: contain;
       }
 
       #receiver-loader {
@@ -167,10 +152,10 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-single-spinner-1"></script>
+    <script defer src="receiver.js?v=receiver-custom-surface-1"></script>
   </head>
   <body>
-    <cast-media-player></cast-media-player>
+    <video id="receiver-video" class="castMediaElement" autoplay playsinline></video>
     <div id="receiver-loader" class="visible" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-loader-activity">
