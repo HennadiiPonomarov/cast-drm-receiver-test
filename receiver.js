@@ -60,38 +60,6 @@ let seekRepeatCount = 0;
 let seekCommitTimer = null;
 let seekResetTimer = null;
 
-function hideBuiltInPlayerOverlay() {
-  const root = playerElement?.shadowRoot;
-  if (!root) {
-    return false;
-  }
-
-  if (!root.getElementById('sweet-custom-ui-style')) {
-    const style = document.createElement('style');
-    style.id = 'sweet-custom-ui-style';
-    style.textContent = 'tv-overlay { display: none !important; }';
-    root.appendChild(style);
-  }
-
-  const overlay = root.querySelector('tv-overlay');
-  if (overlay) {
-    overlay.style.setProperty('display', 'none', 'important');
-  }
-  return Boolean(overlay);
-}
-
-function scheduleBuiltInOverlaySuppression() {
-  let attempts = 0;
-  const timer = setInterval(() => {
-    attempts += 1;
-    if (hideBuiltInPlayerOverlay() || attempts >= 40) {
-      clearInterval(timer);
-    }
-  }, 100);
-}
-
-scheduleBuiltInOverlaySuppression();
-
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
 const receiverLocale = (navigator.language || 'en').toLowerCase();
