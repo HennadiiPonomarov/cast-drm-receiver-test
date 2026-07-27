@@ -4,7 +4,11 @@ const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
+const idleElement = document.getElementById('receiver-idle');
+const idleLabelElement = document.getElementById('receiver-idle-label');
 const playerElement = document.querySelector('cast-media-player');
+let idleTimer = null;
+let playbackHasError = false;
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -13,82 +17,102 @@ const translations = {
   en: {
     connecting: 'Connecting to TV', loading: 'Loading', buffering: 'Buffering',
     cannotPlay: 'Unable to play', playbackError: 'Playback error',
+    waiting: 'Waiting for a stream',
   },
   uk: {
     connecting: 'Підключення до телевізора', loading: 'Завантаження', buffering: 'Буферизація',
     cannotPlay: 'Не вдалося відтворити', playbackError: 'Помилка відтворення',
+    waiting: 'Очікування трансляції',
   },
   ru: {
     connecting: 'Подключение к телевизору', loading: 'Загрузка', buffering: 'Буферизация',
     cannotPlay: 'Не удалось воспроизвести', playbackError: 'Ошибка воспроизведения',
+    waiting: 'Ожидание трансляции',
   },
   sk: {
     connecting: 'Pripájanie k televízoru', loading: 'Načítava sa', buffering: 'Ukladanie do vyrovnávacej pamäte',
     cannotPlay: 'Prehrávanie nie je možné', playbackError: 'Chyba prehrávania',
+    waiting: 'Čaká sa na vysielanie',
   },
   cs: {
     connecting: 'Připojování k televizoru', loading: 'Načítání', buffering: 'Ukládání do vyrovnávací paměti',
     cannotPlay: 'Nelze přehrát', playbackError: 'Chyba přehrávání',
+    waiting: 'Čekání na vysílání',
   },
   hu: {
     connecting: 'Csatlakozás a TV-hez', loading: 'Betöltés', buffering: 'Pufferelés',
     cannotPlay: 'Nem játszható le', playbackError: 'Lejátszási hiba',
+    waiting: 'Várakozás a közvetítésre',
   },
   bg: {
     connecting: 'Свързване с телевизора', loading: 'Зареждане', buffering: 'Буфериране',
     cannotPlay: 'Възпроизвеждането е невъзможно', playbackError: 'Грешка при възпроизвеждане',
+    waiting: 'Изчакване на предаването',
   },
   pl: {
     connecting: 'Łączenie z telewizorem', loading: 'Ładowanie', buffering: 'Buforowanie',
     cannotPlay: 'Nie można odtworzyć', playbackError: 'Błąd odtwarzania',
+    waiting: 'Oczekiwanie na transmisję',
   },
   ro: {
     connecting: 'Conectare la televizor', loading: 'Se încarcă', buffering: 'Se stochează în buffer',
     cannotPlay: 'Redarea nu este disponibilă', playbackError: 'Eroare de redare',
+    waiting: 'Se așteaptă transmisia',
   },
   az: {
     connecting: 'Televizora qoşulur', loading: 'Yüklənir', buffering: 'Buferlənir',
     cannotPlay: 'Oxutmaq mümkün deyil', playbackError: 'Oxutma xətası',
+    waiting: 'Yayım gözlənilir',
   },
   sq: {
     connecting: 'Po lidhet me televizorin', loading: 'Po ngarkohet', buffering: 'Po ruhet në tampon',
     cannotPlay: 'Nuk mund të luhet', playbackError: 'Gabim në riprodhim',
+    waiting: 'Në pritje të transmetimit',
   },
   lv: {
     connecting: 'Savienojuma izveide ar televizoru', loading: 'Notiek ielāde', buffering: 'Buferizācija',
     cannotPlay: 'Neizdevās atskaņot', playbackError: 'Atskaņošanas kļūda',
+    waiting: 'Gaida pārraidi',
   },
   et: {
     connecting: 'Teleriga ühendamine', loading: 'Laadimine', buffering: 'Puhverdamine',
     cannotPlay: 'Esitamine ebaõnnestus', playbackError: 'Esituse tõrge',
+    waiting: 'Ülekande ootamine',
   },
   el: {
     connecting: 'Σύνδεση με την τηλεόραση', loading: 'Φόρτωση', buffering: 'Προσωρινή αποθήκευση',
     cannotPlay: 'Δεν είναι δυνατή η αναπαραγωγή', playbackError: 'Σφάλμα αναπαραγωγής',
+    waiting: 'Αναμονή μετάδοσης',
   },
   lt: {
     connecting: 'Jungiama prie televizoriaus', loading: 'Įkeliama', buffering: 'Buferizuojama',
     cannotPlay: 'Nepavyko paleisti', playbackError: 'Atkūrimo klaida',
+    waiting: 'Laukiama transliacijos',
   },
   sr: {
     connecting: 'Povezivanje sa televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
     cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
+    waiting: 'Čekanje prenosa',
   },
   mk: {
     connecting: 'Поврзување со телевизорот', loading: 'Се вчитува', buffering: 'Баферизација',
     cannotPlay: 'Не може да се репродуцира', playbackError: 'Грешка при репродукција',
+    waiting: 'Се чека пренос',
   },
   bs: {
     connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Baferovanje',
     cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Greška pri reprodukciji',
+    waiting: 'Čekanje prijenosa',
   },
   sl: {
     connecting: 'Povezovanje s televizorjem', loading: 'Nalaganje', buffering: 'Medpomnjenje',
     cannotPlay: 'Predvajanje ni mogoče', playbackError: 'Napaka pri predvajanju',
+    waiting: 'Čakanje na predvajanje',
   },
   hr: {
     connecting: 'Povezivanje s televizorom', loading: 'Učitavanje', buffering: 'Međuspremanje',
     cannotPlay: 'Reprodukcija nije moguća', playbackError: 'Pogreška pri reprodukciji',
+    waiting: 'Čekanje prijenosa',
   },
 };
 
@@ -160,6 +184,43 @@ function hideLoader() {
   }
 }
 
+function showIdle() {
+  if (idleTimer !== null) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+  if (idleLabelElement) {
+    idleLabelElement.textContent = translate('waiting');
+  }
+  if (idleElement) {
+    idleElement.classList.add('visible');
+  }
+}
+
+function hideIdle() {
+  if (idleTimer !== null) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+  if (idleElement) {
+    idleElement.classList.remove('visible');
+  }
+}
+
+function scheduleIdle() {
+  if (idleTimer !== null) {
+    clearTimeout(idleTimer);
+  }
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (!playbackHasError) {
+      hideLoader();
+      hideReceiverStatus();
+      showIdle();
+    }
+  }, 450);
+}
+
 function toTrackPayload(track) {
   return {
     id: track.trackId,
@@ -213,6 +274,8 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 });
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
+  playbackHasError = false;
+  hideIdle();
   showLoader();
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
 
@@ -299,6 +362,8 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
+  playbackHasError = true;
+  hideIdle();
   showLoader(translate('cannotPlay'));
   showReceiverStatus(`${translate('playbackError')}: ${code}`, 'error');
   sendReceiverMessage({
@@ -309,9 +374,15 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  playbackHasError = false;
+  hideIdle();
   hideLoader();
   hideReceiverStatus();
   sendTrackCatalog();
+});
+
+playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, () => {
+  scheduleIdle();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event => {
@@ -346,3 +417,4 @@ options.customNamespaces = {
 context.start(options);
 
 hideLoader();
+showIdle();

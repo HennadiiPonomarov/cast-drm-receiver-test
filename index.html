@@ -103,7 +103,8 @@
         transition-delay: 0s;
       }
 
-      #receiver-loader-logo {
+      #receiver-loader-logo,
+      #receiver-idle-logo {
         position: absolute;
         top: 5vh;
         left: 5vw;
@@ -138,6 +139,91 @@
         to { transform: rotate(360deg); }
       }
 
+      #receiver-idle {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        background: #000;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        will-change: opacity;
+        transition: opacity 560ms cubic-bezier(0.22, 1, 0.36, 1),
+          visibility 0s linear 560ms;
+      }
+
+      #receiver-idle.visible {
+        opacity: 1;
+        visibility: visible;
+        transition-delay: 0s;
+      }
+
+      #receiver-idle-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        transform: translate(-50%, -50%);
+      }
+
+      .receiver-idle-pulse {
+        position: relative;
+        width: 50px;
+        height: 50px;
+        border: 2px solid rgba(32, 197, 201, 0.72);
+        border-radius: 50%;
+        box-shadow: 0 0 28px rgba(32, 197, 201, 0.12);
+      }
+
+      .receiver-idle-pulse::before,
+      .receiver-idle-pulse::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        border: 2px solid rgba(32, 197, 201, 0.36);
+        border-radius: 50%;
+        animation: sweet-idle-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+      }
+
+      .receiver-idle-pulse::after {
+        animation-delay: 1.4s;
+      }
+
+      .receiver-idle-play {
+        position: absolute;
+        top: 50%;
+        left: 52%;
+        width: 0;
+        height: 0;
+        border-top: 8px solid transparent;
+        border-bottom: 8px solid transparent;
+        border-left: 13px solid #20c5c9;
+        transform: translate(-50%, -50%);
+      }
+
+      #receiver-idle-label {
+        margin: 0;
+        color: rgba(244, 248, 250, 0.72);
+        font: 500 18px/1.4 'Inter', Arial, sans-serif;
+        letter-spacing: 0;
+        white-space: nowrap;
+      }
+
+      @keyframes sweet-idle-pulse {
+        0% {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        35% { opacity: 0.5; }
+        100% {
+          opacity: 0;
+          transform: scale(1.75);
+        }
+      }
+
       #receiver-status {
         position: fixed;
         left: 50%;
@@ -167,10 +253,19 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-single-spinner-1"></script>
+    <script defer src="receiver.js?v=receiver-idle-1"></script>
   </head>
   <body>
     <cast-media-player></cast-media-player>
+    <div id="receiver-idle" class="visible" aria-hidden="true">
+      <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
+      <div id="receiver-idle-content">
+        <div class="receiver-idle-pulse">
+          <span class="receiver-idle-play"></span>
+        </div>
+        <p id="receiver-idle-label"></p>
+      </div>
+    </div>
     <div id="receiver-loader" class="visible" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-loader-activity">
