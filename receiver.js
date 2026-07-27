@@ -5,6 +5,9 @@ const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const playerElement = document.querySelector('cast-media-player');
+let receiverIsBuffering = false;
+let loaderSuppressedUntil = 0;
+let deferredLoaderTimer = null;
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -160,6 +163,35 @@ function hideLoader() {
   }
 }
 
+function suppressTransientLoader(durationMs) {
+  loaderSuppressedUntil = Math.max(loaderSuppressedUntil, Date.now() + durationMs);
+  if (deferredLoaderTimer !== null) {
+    clearTimeout(deferredLoaderTimer);
+    deferredLoaderTimer = null;
+  }
+  hideLoader();
+}
+
+function showBufferLoaderWhenNeeded() {
+  if (!receiverIsBuffering) {
+    return;
+  }
+  const delay = loaderSuppressedUntil - Date.now();
+  if (delay <= 0) {
+    showLoader(translate('buffering'));
+    return;
+  }
+  if (deferredLoaderTimer !== null) {
+    clearTimeout(deferredLoaderTimer);
+  }
+  deferredLoaderTimer = setTimeout(() => {
+    deferredLoaderTimer = null;
+    if (receiverIsBuffering) {
+      showLoader(translate('buffering'));
+    }
+  }, delay);
+}
+
 function toTrackPayload(track) {
   return {
     id: track.trackId,
@@ -186,6 +218,10 @@ function applyTrackSelection(message) {
   const audioId = Number(message.audioId);
   const subtitleId = Number(message.subtitleId);
 
+  // Track changes can emit a very short BUFFERING event even though the
+  // current frame remains usable. Avoid flashing the full-screen loader for
+  // that transient state; a real longer stall still shows it afterwards.
+  suppressTransientLoader(1600);
   if (Number.isFinite(audioId) && audioId >= 0) {
     playerManager.getAudioTracksManager().setActiveById(audioId);
   }
@@ -213,8 +249,12 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 });
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
-  showLoader();
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
+  if (drm.suppressLoader) {
+    suppressTransientLoader(2500);
+  } else {
+    showLoader();
+  }
 
   // A PlaybackConfig can be reused between loads. Clear the DRM-specific
   // values first so a clear channel cannot inherit a prior movie's license.
@@ -309,15 +349,25 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
+  receiverIsBuffering = false;
+  if (deferredLoaderTimer !== null) {
+    clearTimeout(deferredLoaderTimer);
+    deferredLoaderTimer = null;
+  }
   hideLoader();
   hideReceiverStatus();
   sendTrackCatalog();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event => {
-  if (event.isBuffering) {
-    showLoader(translate('buffering'));
+  receiverIsBuffering = Boolean(event.isBuffering);
+  if (receiverIsBuffering) {
+    showBufferLoaderWhenNeeded();
   } else {
+    if (deferredLoaderTimer !== null) {
+      clearTimeout(deferredLoaderTimer);
+      deferredLoaderTimer = null;
+    }
     hideLoader();
   }
 });
