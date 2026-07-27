@@ -318,6 +318,9 @@ const options = new cast.framework.CastReceiverOptions();
 // encrypted fMP4 segments on this receiver. HLS segment format fields above
 // are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
 options.useShakaForHls = true;
+const uiConfig = new cast.framework.ui.UiConfig();
+uiConfig.touchScreenOptimizedApp = true;
+options.uiConfig = uiConfig;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
