@@ -292,13 +292,11 @@
       }
 
       #receiver-transition-copy,
-      #receiver-pause-copy,
       #receiver-end-copy {
         min-width: 0;
       }
 
       #receiver-transition-title,
-      #receiver-pause-title,
       #receiver-end-title {
         margin: 0;
         overflow: hidden;
@@ -309,7 +307,6 @@
       }
 
       #receiver-transition-meta,
-      #receiver-pause-meta,
       #receiver-end-meta {
         display: flex;
         align-items: center;
@@ -371,14 +368,16 @@
 
       #receiver-pause {
         z-index: 19;
-        background: rgba(0, 0, 0, 0.38);
+        background:
+          linear-gradient(180deg, rgba(0, 0, 0, 0.62) 0, transparent 32%),
+          linear-gradient(0deg, rgba(0, 0, 0, 0.82) 0, transparent 48%);
       }
 
       #receiver-pause-content {
         position: absolute;
         left: 5vw;
         right: 5vw;
-        bottom: 10vh;
+        bottom: 5.5vh;
       }
 
       #receiver-pause-logo {
@@ -389,20 +388,58 @@
         height: auto;
       }
 
+      #receiver-pause-heading {
+        position: absolute;
+        top: 5vh;
+        left: 23vw;
+        right: 23vw;
+        text-align: center;
+      }
+
       #receiver-pause-label {
-        margin-bottom: 12px;
-        color: #20c5c9;
-        font: 750 14px/1.2 'Inter', Arial, sans-serif;
-        text-transform: uppercase;
+        margin-top: 6px;
+        color: rgba(247, 250, 251, 0.68);
+        font: 500 15px/1.25 'Inter', Arial, sans-serif;
+      }
+
+      #receiver-pause-title {
+        margin: 0;
+        overflow: hidden;
+        color: #f7fafb;
+        font: 650 24px/1.2 'Inter', Arial, sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #receiver-pause-meta {
+        display: none;
+      }
+
+      #receiver-pause-timeline {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
       }
 
       #receiver-pause-progress {
         position: relative;
         width: 100%;
         height: 4px;
-        margin-top: 20px;
-        overflow: hidden;
         background: rgba(255, 255, 255, 0.24);
+      }
+
+      #receiver-pause-progress::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: var(--progress, 0%);
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #20c5c9;
+        box-shadow: 0 0 0 4px rgba(32, 197, 201, 0.16);
+        transform: translate(-50%, -50%);
       }
 
       #receiver-pause-progress-fill {
@@ -412,16 +449,123 @@
         transition: width 180ms linear;
       }
 
-      #receiver-pause-time {
-        margin-top: 8px;
-        color: rgba(247, 250, 251, 0.76);
-        font: 500 14px/1.2 'Inter', Arial, sans-serif;
+      #receiver-pause-time,
+      #receiver-pause-duration {
+        min-width: 66px;
+        color: #f7fafb;
+        font: 600 14px/1.2 'Inter', Arial, sans-serif;
+        white-space: nowrap;
+      }
+
+      #receiver-pause-duration {
+        text-align: right;
+      }
+
+      #receiver-pause-actions {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        margin-top: 22px;
+      }
+
+      .receiver-control {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 54px;
+        height: 54px;
+        border: 0;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.14);
+        box-sizing: border-box;
+      }
+
+      .receiver-control.primary {
+        width: 62px;
+        height: 62px;
+        background: #20c5c9;
+      }
+
+      .receiver-control.option {
+        width: auto;
+        min-width: 84px;
+        padding: 0 16px;
+        border-radius: 27px;
+        gap: 9px;
+        color: #f7fafb;
+        font: 600 14px/1 'Inter', Arial, sans-serif;
+      }
+
+      .receiver-control img {
+        width: 25px;
+        height: 25px;
+        object-fit: contain;
+      }
+
+      .receiver-control.primary img {
+        width: 29px;
+        height: 29px;
+        filter: brightness(0) saturate(100%);
+      }
+
+      #receiver-options {
+        position: absolute;
+        right: 5vw;
+        bottom: 17vh;
+        z-index: 34;
+        width: min(360px, 42vw);
+        max-height: 58vh;
+        padding: 18px;
+        overflow: hidden;
+        border-radius: 4px;
+        background: rgba(11, 20, 25, 0.96);
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(12px);
+        transition: opacity 180ms ease, transform 180ms ease,
+          visibility 0s linear 180ms;
+      }
+
+      #receiver-options.visible {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+        transition-delay: 0s;
+      }
+
+      #receiver-options-title {
+        margin: 0 0 12px;
+        color: #f7fafb;
+        font: 650 20px/1.2 'Inter', Arial, sans-serif;
+      }
+
+      #receiver-options-list {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .receiver-option-row {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 12px;
+        border-left: 3px solid transparent;
+        color: rgba(247, 250, 251, 0.72);
+        font: 550 15px/1.2 'Inter', Arial, sans-serif;
+      }
+
+      .receiver-option-row.selected {
+        border-left-color: #20c5c9;
+        background: rgba(32, 197, 201, 0.12);
+        color: #20c5c9;
       }
 
       #receiver-seek-preview {
         position: fixed;
         left: 50%;
-        bottom: 18vh;
+        bottom: 19vh;
         z-index: 32;
         display: flex;
         flex-direction: column;
@@ -539,9 +683,12 @@
 
       @media (max-width: 960px), (max-height: 600px) {
         #receiver-transition-title,
-        #receiver-pause-title,
         #receiver-end-title {
           font-size: 24px;
+        }
+
+        #receiver-pause-title {
+          font-size: 20px;
         }
 
         #receiver-transition-artwork {
@@ -560,7 +707,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-custom-ui-1"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-1"></script>
   </head>
   <body>
     <video id="receiver-video" class="castMediaElement" autoplay playsinline></video>
@@ -572,7 +719,6 @@
         </div>
         <p id="receiver-idle-label"></p>
       </div>
-    </div>
     <div id="receiver-loader" class="visible" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-loader-activity">
@@ -597,15 +743,43 @@
     </div>
     <div id="receiver-pause" class="receiver-layer" aria-hidden="true">
       <img id="receiver-pause-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
-      <div id="receiver-pause-content">
-        <div id="receiver-pause-label"></div>
+      <div id="receiver-pause-heading">
         <h1 id="receiver-pause-title"></h1>
+        <div id="receiver-pause-label"></div>
         <div id="receiver-pause-meta"></div>
-        <div id="receiver-pause-progress">
-          <div id="receiver-pause-progress-fill"></div>
-        </div>
-        <div id="receiver-pause-time"></div>
       </div>
+      <div id="receiver-pause-content">
+        <div id="receiver-pause-timeline">
+          <div id="receiver-pause-time"></div>
+          <div id="receiver-pause-progress">
+            <div id="receiver-pause-progress-fill"></div>
+          </div>
+          <div id="receiver-pause-duration"></div>
+        </div>
+        <div id="receiver-pause-actions">
+          <div class="receiver-control"><img src="assets/player/rewind-left.svg" alt=""></div>
+          <div class="receiver-control primary">
+            <img id="receiver-play-state-icon" src="assets/player/pause.svg" alt="">
+          </div>
+          <div class="receiver-control"><img src="assets/player/rewind-right.svg" alt=""></div>
+          <div class="receiver-control option">
+            <img src="assets/player/audio.svg" alt="">
+            <span id="receiver-audio-label"></span>
+          </div>
+          <div class="receiver-control option">
+            <img src="assets/player/hamburger.svg" alt="">
+            <span id="receiver-subtitles-label"></span>
+          </div>
+          <div class="receiver-control option">
+            <img src="assets/player/auto.svg" alt="">
+            <span id="receiver-quality-label"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="receiver-options" aria-hidden="true">
+      <h2 id="receiver-options-title"></h2>
+      <div id="receiver-options-list"></div>
     </div>
     <div id="receiver-seek-preview" aria-hidden="true">
       <div id="receiver-seek-frame">

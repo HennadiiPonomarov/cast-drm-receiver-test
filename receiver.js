@@ -19,7 +19,16 @@ const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
 const pauseMetaElement = document.getElementById('receiver-pause-meta');
 const pauseProgressElement = document.getElementById('receiver-pause-progress-fill');
+const pauseProgressTrackElement = document.getElementById('receiver-pause-progress');
 const pauseTimeElement = document.getElementById('receiver-pause-time');
+const pauseDurationElement = document.getElementById('receiver-pause-duration');
+const playStateIconElement = document.getElementById('receiver-play-state-icon');
+const audioLabelElement = document.getElementById('receiver-audio-label');
+const subtitlesLabelElement = document.getElementById('receiver-subtitles-label');
+const qualityLabelElement = document.getElementById('receiver-quality-label');
+const optionsElement = document.getElementById('receiver-options');
+const optionsTitleElement = document.getElementById('receiver-options-title');
+const optionsListElement = document.getElementById('receiver-options-list');
 const seekPreviewElement = document.getElementById('receiver-seek-preview');
 const seekFrameElement = document.getElementById('receiver-seek-frame');
 const seekImageElement = document.getElementById('receiver-seek-image');
@@ -40,6 +49,16 @@ let playbackHasError = false;
 let currentPresentation = null;
 let thumbnailCues = [];
 let thumbnailRequestId = 0;
+let thumbnailSprite = null;
+let controlsTimer = null;
+let menuSection = 'audio';
+let menuSelection = 0;
+let audioTrackCatalog = [];
+let subtitleTrackCatalog = [];
+let pendingSeek = null;
+let seekRepeatCount = 0;
+let seekCommitTimer = null;
+let seekResetTimer = null;
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -51,7 +70,7 @@ const translations = {
     waiting: 'Waiting for a stream',
     tryAgain: 'Please try again or choose another video.',
     paused: 'Paused', finished: 'Playback finished', code: 'Code',
-    audio: 'Audio', subtitles: 'Subtitles', off: 'Off',
+    audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', auto: 'Auto', off: 'Off',
     live: 'Live', recording: 'Recording', movie: 'Movie',
   },
   uk: {
@@ -60,7 +79,7 @@ const translations = {
     waiting: 'Очікування трансляції',
     tryAgain: 'Спробуйте ще раз або виберіть інше відео.',
     paused: 'Пауза', finished: 'Відтворення завершено', code: 'Код',
-    audio: 'Аудіо', subtitles: 'Субтитри', off: 'Вимкнено',
+    audio: 'Аудіо', subtitles: 'Субтитри', quality: 'Якість', auto: 'Авто', off: 'Вимкнено',
     live: 'Наживо', recording: 'Запис', movie: 'Фільм',
   },
   ru: {
@@ -69,7 +88,7 @@ const translations = {
     waiting: 'Ожидание трансляции',
     tryAgain: 'Попробуйте ещё раз или выберите другое видео.',
     paused: 'Пауза', finished: 'Просмотр завершён', code: 'Код',
-    audio: 'Аудио', subtitles: 'Субтитры', off: 'Выключены',
+    audio: 'Аудио', subtitles: 'Субтитры', quality: 'Качество', auto: 'Авто', off: 'Выключены',
     live: 'Прямой эфир', recording: 'Запись', movie: 'Фильм',
   },
   sk: {
@@ -78,7 +97,7 @@ const translations = {
     waiting: 'Čaká sa na vysielanie',
     tryAgain: 'Skúste to znova alebo vyberte iné video.',
     paused: 'Pozastavené', finished: 'Prehrávanie sa skončilo', code: 'Kód',
-    audio: 'Zvuk', subtitles: 'Titulky', off: 'Vypnuté',
+    audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuté',
     live: 'Naživo', recording: 'Záznam', movie: 'Film',
   },
   cs: {
@@ -87,7 +106,7 @@ const translations = {
     waiting: 'Čekání na vysílání',
     tryAgain: 'Zkuste to znovu nebo vyberte jiné video.',
     paused: 'Pozastaveno', finished: 'Přehrávání skončilo', code: 'Kód',
-    audio: 'Zvuk', subtitles: 'Titulky', off: 'Vypnuto',
+    audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuto',
     live: 'Živě', recording: 'Záznam', movie: 'Film',
   },
   hu: {
@@ -96,7 +115,7 @@ const translations = {
     waiting: 'Várakozás a közvetítésre',
     tryAgain: 'Próbálja újra, vagy válasszon másik videót.',
     paused: 'Szüneteltetve', finished: 'A lejátszás véget ért', code: 'Kód',
-    audio: 'Hang', subtitles: 'Feliratok', off: 'Kikapcsolva',
+    audio: 'Hang', subtitles: 'Feliratok', quality: 'Minőség', auto: 'Automatikus', off: 'Kikapcsolva',
     live: 'Élő', recording: 'Felvétel', movie: 'Film',
   },
   bg: {
@@ -105,7 +124,7 @@ const translations = {
     waiting: 'Изчакване на предаването',
     tryAgain: 'Опитайте отново или изберете друго видео.',
     paused: 'Пауза', finished: 'Възпроизвеждането приключи', code: 'Код',
-    audio: 'Аудио', subtitles: 'Субтитри', off: 'Изключени',
+    audio: 'Аудио', subtitles: 'Субтитри', quality: 'Качество', auto: 'Автоматично', off: 'Изключени',
     live: 'На живо', recording: 'Запис', movie: 'Филм',
   },
   pl: {
@@ -114,7 +133,7 @@ const translations = {
     waiting: 'Oczekiwanie na transmisję',
     tryAgain: 'Spróbuj ponownie lub wybierz inny film.',
     paused: 'Wstrzymano', finished: 'Odtwarzanie zakończone', code: 'Kod',
-    audio: 'Dźwięk', subtitles: 'Napisy', off: 'Wyłączone',
+    audio: 'Dźwięk', subtitles: 'Napisy', quality: 'Jakość', auto: 'Auto', off: 'Wyłączone',
     live: 'Na żywo', recording: 'Nagranie', movie: 'Film',
   },
   ro: {
@@ -123,7 +142,7 @@ const translations = {
     waiting: 'Se așteaptă transmisia',
     tryAgain: 'Încercați din nou sau alegeți alt videoclip.',
     paused: 'În pauză', finished: 'Redarea s-a încheiat', code: 'Cod',
-    audio: 'Audio', subtitles: 'Subtitrări', off: 'Dezactivate',
+    audio: 'Audio', subtitles: 'Subtitrări', quality: 'Calitate', auto: 'Automat', off: 'Dezactivate',
     live: 'În direct', recording: 'Înregistrare', movie: 'Film',
   },
   az: {
@@ -132,7 +151,7 @@ const translations = {
     waiting: 'Yayım gözlənilir',
     tryAgain: 'Yenidən cəhd edin və ya başqa video seçin.',
     paused: 'Dayandırılıb', finished: 'Oxutma bitdi', code: 'Kod',
-    audio: 'Səs', subtitles: 'Subtitrlər', off: 'Söndürülüb',
+    audio: 'Səs', subtitles: 'Subtitrlər', quality: 'Keyfiyyət', auto: 'Avtomatik', off: 'Söndürülüb',
     live: 'Canlı', recording: 'Yazı', movie: 'Film',
   },
   sq: {
@@ -141,7 +160,7 @@ const translations = {
     waiting: 'Në pritje të transmetimit',
     tryAgain: 'Provo përsëri ose zgjidh një video tjetër.',
     paused: 'Në pauzë', finished: 'Riprodhimi përfundoi', code: 'Kodi',
-    audio: 'Audio', subtitles: 'Titrat', off: 'Fikur',
+    audio: 'Audio', subtitles: 'Titrat', quality: 'Cilësia', auto: 'Automatike', off: 'Fikur',
     live: 'Drejtpërdrejt', recording: 'Regjistrim', movie: 'Film',
   },
   lv: {
@@ -150,7 +169,7 @@ const translations = {
     waiting: 'Gaida pārraidi',
     tryAgain: 'Mēģiniet vēlreiz vai izvēlieties citu video.',
     paused: 'Pauzēts', finished: 'Atskaņošana pabeigta', code: 'Kods',
-    audio: 'Audio', subtitles: 'Subtitri', off: 'Izslēgti',
+    audio: 'Audio', subtitles: 'Subtitri', quality: 'Kvalitāte', auto: 'Automātiski', off: 'Izslēgti',
     live: 'Tiešraide', recording: 'Ieraksts', movie: 'Filma',
   },
   et: {
@@ -159,7 +178,7 @@ const translations = {
     waiting: 'Ülekande ootamine',
     tryAgain: 'Proovige uuesti või valige mõni muu video.',
     paused: 'Peatatud', finished: 'Esitus lõppes', code: 'Kood',
-    audio: 'Heli', subtitles: 'Subtiitrid', off: 'Väljas',
+    audio: 'Heli', subtitles: 'Subtiitrid', quality: 'Kvaliteet', auto: 'Automaatne', off: 'Väljas',
     live: 'Otse', recording: 'Salvestis', movie: 'Film',
   },
   el: {
@@ -168,7 +187,7 @@ const translations = {
     waiting: 'Αναμονή μετάδοσης',
     tryAgain: 'Δοκιμάστε ξανά ή επιλέξτε άλλο βίντεο.',
     paused: 'Σε παύση', finished: 'Η αναπαραγωγή ολοκληρώθηκε', code: 'Κωδικός',
-    audio: 'Ήχος', subtitles: 'Υπότιτλοι', off: 'Ανενεργοί',
+    audio: 'Ήχος', subtitles: 'Υπότιτλοι', quality: 'Ποιότητα', auto: 'Αυτόματο', off: 'Ανενεργοί',
     live: 'Ζωντανά', recording: 'Εγγραφή', movie: 'Ταινία',
   },
   lt: {
@@ -177,7 +196,7 @@ const translations = {
     waiting: 'Laukiama transliacijos',
     tryAgain: 'Bandykite dar kartą arba pasirinkite kitą vaizdo įrašą.',
     paused: 'Pristabdyta', finished: 'Atkūrimas baigtas', code: 'Kodas',
-    audio: 'Garsas', subtitles: 'Subtitrai', off: 'Išjungti',
+    audio: 'Garsas', subtitles: 'Subtitrai', quality: 'Kokybė', auto: 'Automatiškai', off: 'Išjungti',
     live: 'Tiesiogiai', recording: 'Įrašas', movie: 'Filmas',
   },
   sr: {
@@ -186,7 +205,7 @@ const translations = {
     waiting: 'Čekanje prenosa',
     tryAgain: 'Pokušajte ponovo ili izaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kod',
-    audio: 'Zvuk', subtitles: 'Titlovi', off: 'Isključeni',
+    audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvalitet', auto: 'Automatski', off: 'Isključeni',
     live: 'Uživo', recording: 'Snimak', movie: 'Film',
   },
   mk: {
@@ -195,7 +214,7 @@ const translations = {
     waiting: 'Се чека пренос',
     tryAgain: 'Обидете се повторно или изберете друго видео.',
     paused: 'Паузирано', finished: 'Репродукцијата заврши', code: 'Код',
-    audio: 'Аудио', subtitles: 'Преводи', off: 'Исклучени',
+    audio: 'Аудио', subtitles: 'Преводи', quality: 'Квалитет', auto: 'Автоматски', off: 'Исклучени',
     live: 'Во живо', recording: 'Снимка', movie: 'Филм',
   },
   bs: {
@@ -204,7 +223,7 @@ const translations = {
     waiting: 'Čekanje prijenosa',
     tryAgain: 'Pokušajte ponovo ili odaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kod',
-    audio: 'Zvuk', subtitles: 'Titlovi', off: 'Isključeni',
+    audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvalitet', auto: 'Automatski', off: 'Isključeni',
     live: 'Uživo', recording: 'Snimak', movie: 'Film',
   },
   sl: {
@@ -213,7 +232,7 @@ const translations = {
     waiting: 'Čakanje na predvajanje',
     tryAgain: 'Poskusite znova ali izberite drug videoposnetek.',
     paused: 'Začasno ustavljeno', finished: 'Predvajanje je končano', code: 'Koda',
-    audio: 'Zvok', subtitles: 'Podnapisi', off: 'Izklopljeni',
+    audio: 'Zvok', subtitles: 'Podnapisi', quality: 'Kakovost', auto: 'Samodejno', off: 'Izklopljeni',
     live: 'V živo', recording: 'Posnetek', movie: 'Film',
   },
   hr: {
@@ -222,7 +241,7 @@ const translations = {
     waiting: 'Čekanje prijenosa',
     tryAgain: 'Pokušajte ponovno ili odaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kôd',
-    audio: 'Zvuk', subtitles: 'Titlovi', off: 'Isključeni',
+    audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvaliteta', auto: 'Automatski', off: 'Isključeni',
     live: 'Uživo', recording: 'Snimka', movie: 'Film',
   },
 };
@@ -296,6 +315,15 @@ function metadataImage(metadata) {
 
 function presentationFor(media, customData = {}) {
   const metadata = media?.metadata || {};
+  const qualityOptions = Array.isArray(customData.qualityOptions)
+    ? customData.qualityOptions
+        .map(option => ({
+          maxHeight: option?.maxHeight !== null && Number.isFinite(Number(option?.maxHeight))
+            ? Number(option.maxHeight)
+            : -1,
+          label: option?.label || translate('auto'),
+        }))
+    : [];
   return {
     title: metadata.title || customData.title || '',
     subtitle: metadata.subtitle || customData.subtitle || '',
@@ -304,6 +332,15 @@ function presentationFor(media, customData = {}) {
     isRecording: Boolean(customData.isRecording),
     isMovie: Boolean(customData.isMovie) || (!customData.isLive && !customData.isRecording),
     thumbnailsPlaylistUrl: secureMediaUrl(customData.thumbnailsPlaylistUrl || ''),
+    thumbnailImageUrl: secureMediaUrl(customData.thumbnailImageUrl || ''),
+    thumbnailInterval: Number(customData.thumbnailInterval) || 0,
+    thumbnailCols: Number(customData.thumbnailCols) || 0,
+    thumbnailRows: Number(customData.thumbnailRows) || 0,
+    qualityOptions,
+    maxHeight: customData.maxHeight !== null && customData.maxHeight !== undefined
+      && Number.isFinite(Number(customData.maxHeight))
+      ? Number(customData.maxHeight)
+      : -1,
   };
 }
 
@@ -365,6 +402,8 @@ function showToast(message, duration = 1800) {
 }
 
 function hidePause() {
+  controlsTimer = clearTimer(controlsTimer);
+  hideOptions();
   setLayerVisible(pauseElement, false);
 }
 
@@ -378,20 +417,36 @@ function updatePauseProgress() {
   if (pauseProgressElement) {
     pauseProgressElement.style.width = `${percentage}%`;
   }
+  if (pauseProgressTrackElement) {
+    pauseProgressTrackElement.style.setProperty('--progress', `${percentage}%`);
+  }
   if (pauseTimeElement) {
-    pauseTimeElement.textContent = boundedDuration > 0
-      ? `${formatTime(position)} / ${formatTime(boundedDuration)}`
-      : presentationBadge();
+    pauseTimeElement.textContent = boundedDuration > 0 ? formatTime(position) : presentationBadge();
+  }
+  if (pauseDurationElement) {
+    pauseDurationElement.textContent = boundedDuration > 0 ? formatTime(boundedDuration) : '';
   }
 }
 
-function showPause() {
+function updateControlLabels() {
+  if (audioLabelElement) {
+    audioLabelElement.textContent = translate('audio');
+  }
+  if (subtitlesLabelElement) {
+    subtitlesLabelElement.textContent = translate('subtitles');
+  }
+  if (qualityLabelElement) {
+    qualityLabelElement.textContent = translate('quality');
+  }
+}
+
+function showPause(autoHide = false) {
   if (!currentPresentation?.title || playbackHasError) {
     return;
   }
   hideTransition();
   if (pauseLabelElement) {
-    pauseLabelElement.textContent = translate('paused');
+    pauseLabelElement.textContent = currentPresentation.subtitle || presentationBadge();
   }
   if (pauseTitleElement) {
     pauseTitleElement.textContent = currentPresentation.title;
@@ -400,7 +455,96 @@ function showPause() {
     pauseMetaElement.textContent = currentPresentation.subtitle || presentationBadge();
   }
   updatePauseProgress();
+  updateControlLabels();
+  if (playStateIconElement) {
+    playStateIconElement.src = mediaElement.paused
+      ? 'assets/player/play.svg'
+      : 'assets/player/pause.svg';
+  }
   setLayerVisible(pauseElement, true);
+  controlsTimer = clearTimer(controlsTimer);
+  if (autoHide && !mediaElement.paused) {
+    controlsTimer = setTimeout(hidePause, 2800);
+  }
+}
+
+function optionItems(section = menuSection) {
+  if (section === 'audio') {
+    return audioTrackCatalog.map(track => ({
+      id: track.trackId,
+      label: track.name || track.language || String(track.trackId),
+      selected: track.trackId === playerManager.getAudioTracksManager().getActiveId(),
+    }));
+  }
+  if (section === 'subtitles') {
+    const activeIds = playerManager.getTextTracksManager().getActiveIds();
+    return [
+      {id: -1, label: translate('off'), selected: activeIds.length === 0},
+      ...subtitleTrackCatalog.map(track => ({
+        id: track.trackId,
+        label: track.name || track.language || String(track.trackId),
+        selected: activeIds.includes(track.trackId),
+      })),
+    ];
+  }
+  return (currentPresentation?.qualityOptions || []).map(option => ({
+    id: option.maxHeight,
+    label: option.label,
+    selected: option.maxHeight === currentPresentation.maxHeight
+      || (option.maxHeight < 0 && currentPresentation.maxHeight < 0),
+  }));
+}
+
+function renderOptions() {
+  const items = optionItems();
+  menuSelection = Math.max(0, Math.min(menuSelection, Math.max(0, items.length - 1)));
+  if (optionsTitleElement) {
+    optionsTitleElement.textContent = translate(menuSection);
+  }
+  if (optionsListElement) {
+    optionsListElement.textContent = '';
+    items.forEach((item, index) => {
+      const row = document.createElement('div');
+      row.className = `receiver-option-row${index === menuSelection ? ' selected' : ''}`;
+      row.textContent = item.label;
+      optionsListElement.appendChild(row);
+    });
+  }
+}
+
+function showOptions(section = menuSection) {
+  menuSection = section;
+  const items = optionItems();
+  const selectedIndex = items.findIndex(item => item.selected);
+  menuSelection = selectedIndex >= 0 ? selectedIndex : 0;
+  renderOptions();
+  optionsElement?.classList.add('visible');
+}
+
+function hideOptions() {
+  optionsElement?.classList.remove('visible');
+}
+
+function applySelectedOption() {
+  const item = optionItems()[menuSelection];
+  if (!item) {
+    return;
+  }
+  if (menuSection === 'audio') {
+    playerManager.getAudioTracksManager().setActiveById(item.id);
+  } else if (menuSection === 'subtitles') {
+    playerManager.getTextTracksManager().setActiveByIds(item.id < 0 ? [] : [item.id]);
+  } else {
+    sendReceiverMessage({
+      type: 'quality-request',
+      maxHeight: item.id,
+      positionMs: Math.round(playerManager.getCurrentTimeSec() * 1000),
+    });
+    currentPresentation.maxHeight = item.id;
+  }
+  showToast(`${translate(menuSection)}: ${item.label}`);
+  hideOptions();
+  showPause(true);
 }
 
 function hideError() {
@@ -490,9 +634,12 @@ function parseThumbnailVtt(text, playlistUrl) {
   return cues;
 }
 
-async function loadThumbnailCues(playlistUrl) {
+async function loadThumbnailCues(playlistUrl, sprite = null) {
   const requestId = ++thumbnailRequestId;
   thumbnailCues = [];
+  thumbnailSprite = sprite?.imageUrl && sprite.interval > 0 && sprite.cols > 0 && sprite.rows > 0
+    ? sprite
+    : null;
   if (!playlistUrl) {
     return;
   }
@@ -511,9 +658,21 @@ async function loadThumbnailCues(playlistUrl) {
 }
 
 function thumbnailCueAt(positionSeconds) {
-  return thumbnailCues.find(cue => positionSeconds >= cue.start && positionSeconds < cue.end)
+  const cue = thumbnailCues.find(item => positionSeconds >= item.start && positionSeconds < item.end)
     || thumbnailCues.find(cue => positionSeconds < cue.end)
     || null;
+  if (cue || !thumbnailSprite) {
+    return cue;
+  }
+  const index = Math.max(0, Math.floor(positionSeconds / thumbnailSprite.interval));
+  const totalFrames = thumbnailSprite.cols * thumbnailSprite.rows;
+  const frame = Math.min(index, totalFrames - 1);
+  return {
+    start: frame * thumbnailSprite.interval,
+    end: (frame + 1) * thumbnailSprite.interval,
+    imageUrl: thumbnailSprite.imageUrl,
+    spriteFrame: frame,
+  };
 }
 
 function renderThumbnailCue(cue) {
@@ -527,7 +686,15 @@ function renderThumbnailCue(cue) {
   }
   seekFrameElement.hidden = false;
   seekImageElement.onload = () => {
-    const crop = cue.crop || [0, 0, seekImageElement.naturalWidth, seekImageElement.naturalHeight];
+    let crop = cue.crop;
+    if (!crop && Number.isFinite(cue.spriteFrame) && thumbnailSprite) {
+      const frameWidth = seekImageElement.naturalWidth / thumbnailSprite.cols;
+      const frameHeight = seekImageElement.naturalHeight / thumbnailSprite.rows;
+      const column = cue.spriteFrame % thumbnailSprite.cols;
+      const row = Math.floor(cue.spriteFrame / thumbnailSprite.cols);
+      crop = [column * frameWidth, row * frameHeight, frameWidth, frameHeight];
+    }
+    crop = crop || [0, 0, seekImageElement.naturalWidth, seekImageElement.naturalHeight];
     const [x, y, width, height] = crop;
     if (!width || !height) {
       seekImageElement.style.display = 'none';
@@ -556,6 +723,13 @@ function showSeekPreview(positionSeconds, autoHide = false) {
   }
   renderThumbnailCue(thumbnailCueAt(position));
   if (seekPreviewElement) {
+    const duration = playerManager.getDurationSec();
+    if (Number.isFinite(duration) && duration > 0) {
+      const percentage = Math.max(8, Math.min(92, (position / duration) * 100));
+      seekPreviewElement.style.left = `${percentage}%`;
+    } else {
+      seekPreviewElement.style.left = '50%';
+    }
     seekPreviewElement.classList.add('visible');
   }
   if (autoHide) {
@@ -644,8 +818,10 @@ function toTrackPayload(track) {
 
 function sendTrackCatalog() {
   try {
-    const audioTracks = playerManager.getAudioTracksManager().getTracks().map(toTrackPayload);
-    const subtitleTracks = playerManager.getTextTracksManager().getTracks().map(toTrackPayload);
+    audioTrackCatalog = playerManager.getAudioTracksManager().getTracks();
+    subtitleTrackCatalog = playerManager.getTextTracksManager().getTracks();
+    const audioTracks = audioTrackCatalog.map(toTrackPayload);
+    const subtitleTracks = subtitleTrackCatalog.map(toTrackPayload);
     sendReceiverMessage({
       type: 'tracks',
       audio: audioTracks,
@@ -687,6 +863,119 @@ function applyTrackSelection(message) {
   }
 }
 
+function isOptionsVisible() {
+  return Boolean(optionsElement?.classList.contains('visible'));
+}
+
+function cycleMenuSection(direction) {
+  const sections = ['audio', 'subtitles', 'quality'];
+  let index = sections.indexOf(menuSection);
+  for (let attempts = 0; attempts < sections.length; attempts += 1) {
+    index = (index + direction + sections.length) % sections.length;
+    if (optionItems(sections[index]).length > 0) {
+      menuSection = sections[index];
+      menuSelection = 0;
+      renderOptions();
+      return;
+    }
+  }
+}
+
+function seekStepSeconds() {
+  seekResetTimer = clearTimer(seekResetTimer);
+  seekRepeatCount += 1;
+  const accelerated = seekRepeatCount > 11
+    ? Math.min(180, 30 + ((seekRepeatCount - 11) * 4))
+    : 30;
+  seekResetTimer = setTimeout(() => {
+    seekRepeatCount = 0;
+    seekResetTimer = null;
+  }, 400);
+  return accelerated;
+}
+
+function previewRemoteSeek(direction) {
+  const duration = playerManager.getDurationSec();
+  if (!Number.isFinite(duration) || duration <= 0) {
+    return;
+  }
+  const current = pendingSeek === null ? playerManager.getCurrentTimeSec() : pendingSeek;
+  pendingSeek = Math.max(0, Math.min(duration, current + (direction * seekStepSeconds())));
+  showPause();
+  showSeekPreview(pendingSeek);
+  seekCommitTimer = clearTimer(seekCommitTimer);
+  seekCommitTimer = setTimeout(() => {
+    const target = pendingSeek;
+    pendingSeek = null;
+    seekCommitTimer = null;
+    if (Number.isFinite(target)) {
+      playerManager.seek(target);
+    }
+    hideSeekPreview();
+    showPause(true);
+  }, 650);
+}
+
+function togglePlayback() {
+  if (mediaElement.paused) {
+    mediaElement.play().catch(() => {});
+  } else {
+    mediaElement.pause();
+  }
+  showPause(true);
+}
+
+function handleReceiverKey(event) {
+  const key = event.key || '';
+  const code = event.keyCode;
+  const left = key === 'ArrowLeft' || code === 37;
+  const right = key === 'ArrowRight' || code === 39;
+  const up = key === 'ArrowUp' || code === 38;
+  const down = key === 'ArrowDown' || code === 40;
+  const enter = key === 'Enter' || key === ' ' || code === 13 || code === 23;
+  const back = key === 'Escape' || key === 'Backspace' || code === 4 || code === 27;
+  const playPause = key === 'MediaPlayPause' || code === 179;
+
+  if (!(left || right || up || down || enter || back || playPause)) {
+    return;
+  }
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (isOptionsVisible()) {
+    if (left || right) {
+      cycleMenuSection(left ? -1 : 1);
+    } else if (up || down) {
+      const items = optionItems();
+      if (items.length > 0) {
+        menuSelection = (menuSelection + (up ? -1 : 1) + items.length) % items.length;
+        renderOptions();
+      }
+    } else if (enter) {
+      applySelectedOption();
+    } else if (back) {
+      hideOptions();
+      showPause(true);
+    }
+    return;
+  }
+
+  if (left || right) {
+    previewRemoteSeek(left ? -1 : 1);
+  } else if (down) {
+    showPause();
+    showOptions('audio');
+  } else if (up) {
+    showPause(true);
+  } else if (enter || playPause) {
+    togglePlayback();
+  } else if (back) {
+    hidePause();
+  }
+}
+
+document.addEventListener('keydown', handleReceiverKey, true);
+
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
 // explicit for receivers that do not infer it reliably from the playlist.
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
@@ -696,7 +985,12 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   resetPresentationLayers();
   hideIdle();
   showTransition();
-  loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl);
+  loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl, {
+    imageUrl: currentPresentation.thumbnailImageUrl,
+    interval: currentPresentation.thumbnailInterval,
+    cols: currentPresentation.thumbnailCols,
+    rows: currentPresentation.thumbnailRows,
+  });
   if (customData.isLive) {
     media.streamType = cast.framework.messages.StreamType.LIVE;
     media.duration = -1;
@@ -845,7 +1139,11 @@ playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
-  hidePause();
+  if (pauseElement?.classList.contains('visible')) {
+    showPause(true);
+  } else {
+    hidePause();
+  }
   hideEnd();
 });
 
@@ -860,6 +1158,7 @@ if (cast.framework.events.EventType.TIME_UPDATE) {
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_SEEK, event => {
   const position = event.requestData?.currentTime;
   if (Number.isFinite(position)) {
+    showPause(true);
     showSeekPreview(position, true);
   }
 });
@@ -875,8 +1174,12 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
       if (message.visible === false) {
         hideSeekPreview();
       } else {
+        showPause(true);
         showSeekPreview(Number(message.positionMs) / 1000);
       }
+    } else if (message?.type === 'show-options') {
+      showPause();
+      showOptions(message.section || 'audio');
     }
   } catch (error) {
     console.warn('[SWEET Receiver] Invalid custom message', error);
