@@ -1,7 +1,7 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
-const RECEIVER_BUILD = 'track-switch-4';
+const RECEIVER_BUILD = 'track-switch-5';
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -119,8 +119,8 @@ if (playerElement) {
     '--splash-background': '#000',
     '--splash-color': '#000',
     '--splash-image': "url('assets/transparent.svg')",
-    '--spinner-image': 'none',
-    '--buffering-image': 'none',
+    '--spinner-image': "url('assets/transparent.svg')",
+    '--buffering-image': "url('assets/transparent.svg')",
   };
   Object.entries(playerStyles).forEach(([name, value]) => {
     playerElement.style.setProperty(name, value);
