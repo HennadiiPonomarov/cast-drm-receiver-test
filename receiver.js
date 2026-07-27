@@ -6,8 +6,10 @@ const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const playerElement = document.querySelector('cast-media-player');
 let receiverIsBuffering = false;
-let loaderSuppressedUntil = 0;
-let deferredLoaderTimer = null;
+let suppressLoaderUntilLoadComplete = false;
+let suppressLoaderUntilBufferEnds = false;
+let trackLoaderSafetyTimer = null;
+let trackSelectionSequence = 0;
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -163,33 +165,27 @@ function hideLoader() {
   }
 }
 
-function suppressTransientLoader(durationMs) {
-  loaderSuppressedUntil = Math.max(loaderSuppressedUntil, Date.now() + durationMs);
-  if (deferredLoaderTimer !== null) {
-    clearTimeout(deferredLoaderTimer);
-    deferredLoaderTimer = null;
+function suppressLoaderForTrackChange() {
+  suppressLoaderUntilBufferEnds = true;
+  if (trackLoaderSafetyTimer !== null) {
+    clearTimeout(trackLoaderSafetyTimer);
   }
+  trackLoaderSafetyTimer = setTimeout(() => {
+    suppressLoaderUntilBufferEnds = false;
+    trackLoaderSafetyTimer = null;
+    showBufferLoaderWhenNeeded();
+  }, 8000);
   hideLoader();
 }
 
 function showBufferLoaderWhenNeeded() {
-  if (!receiverIsBuffering) {
+  if (!receiverIsBuffering
+      || suppressLoaderUntilLoadComplete
+      || suppressLoaderUntilBufferEnds) {
+    hideLoader();
     return;
   }
-  const delay = loaderSuppressedUntil - Date.now();
-  if (delay <= 0) {
-    showLoader(translate('buffering'));
-    return;
-  }
-  if (deferredLoaderTimer !== null) {
-    clearTimeout(deferredLoaderTimer);
-  }
-  deferredLoaderTimer = setTimeout(() => {
-    deferredLoaderTimer = null;
-    if (receiverIsBuffering) {
-      showLoader(translate('buffering'));
-    }
-  }, delay);
+  showLoader(translate('buffering'));
 }
 
 function toTrackPayload(track) {
@@ -214,19 +210,101 @@ function sendTrackCatalog() {
   }
 }
 
+function activeTrackState() {
+  const audioManager = playerManager.getAudioTracksManager();
+  const textManager = playerManager.getTextTracksManager();
+  return {
+    audioId: audioManager.getActiveId(),
+    subtitleIds: textManager.getActiveIds(),
+  };
+}
+
+function sendTrackSelectionResult(sequence, requestedAudioId, requestedSubtitleId, error) {
+  if (sequence !== trackSelectionSequence) {
+    return;
+  }
+  let active = {audioId: -1, subtitleIds: []};
+  try {
+    active = activeTrackState();
+  } catch (stateError) {
+    error = error || stateError;
+  }
+  const subtitleIds = Array.isArray(active.subtitleIds) ? active.subtitleIds : [];
+  sendReceiverMessage({
+    type: 'tracks-selected',
+    requestedAudioId,
+    requestedSubtitleId,
+    activeAudioId: Number.isFinite(active.audioId) ? active.audioId : -1,
+    activeSubtitleIds: subtitleIds,
+    success: !error
+      && (requestedAudioId < 0 || active.audioId === requestedAudioId)
+      && (requestedSubtitleId < 0
+        ? subtitleIds.length === 0
+        : subtitleIds.includes(requestedSubtitleId)),
+    error: error ? sanitizeErrorValue(error.message || error) : '',
+  });
+}
+
 function applyTrackSelection(message) {
   const audioId = Number(message.audioId);
   const subtitleId = Number(message.subtitleId);
+  const audioLanguage = String(message.audioLanguage || '');
+  const subtitleLanguage = String(message.subtitleLanguage || '');
+  const requestedAudioId = Number.isFinite(audioId) ? audioId : -1;
+  const requestedSubtitleId = Number.isFinite(subtitleId) ? subtitleId : -1;
+  const sequence = ++trackSelectionSequence;
+  let lastError = null;
 
-  // Track changes can emit a very short BUFFERING event even though the
-  // current frame remains usable. Avoid flashing the full-screen loader for
-  // that transient state; a real longer stall still shows it afterwards.
-  suppressTransientLoader(1600);
-  if (Number.isFinite(audioId) && audioId >= 0) {
-    playerManager.getAudioTracksManager().setActiveById(audioId);
+  // Track changes can emit BUFFERING while the current frame remains usable.
+  // Keep the receiver overlay hidden for the whole internal track switch.
+  suppressLoaderForTrackChange();
+
+  const applyRequestedTracks = () => {
+    if (sequence !== trackSelectionSequence) {
+      return;
+    }
+    const audioManager = playerManager.getAudioTracksManager();
+    const textManager = playerManager.getTextTracksManager();
+    try {
+      if (requestedAudioId >= 0) {
+        if (audioManager.getTrackById(requestedAudioId)) {
+          audioManager.setActiveById(requestedAudioId);
+        } else if (audioLanguage) {
+          audioManager.setActiveByLanguage(audioLanguage);
+        }
+      }
+      if (requestedSubtitleId >= 0) {
+        if (textManager.getTrackById(requestedSubtitleId)) {
+          textManager.setActiveByIds([requestedSubtitleId]);
+        } else if (subtitleLanguage) {
+          textManager.setActiveByLanguage(subtitleLanguage);
+        }
+      } else {
+        textManager.setActiveByIds([]);
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('[SWEET Receiver] Cannot apply track selection', error);
+    }
+  };
+
+  applyRequestedTracks();
+  // Shaka may rebuild its track list immediately after a variant switch.
+  // Reapply once the new variant is stable, then report the actual active IDs.
+  setTimeout(applyRequestedTracks, 180);
+  setTimeout(() => {
+    applyRequestedTracks();
+    sendTrackSelectionResult(
+      sequence, requestedAudioId, requestedSubtitleId, lastError);
+  }, 650);
+}
+
+function clearTrackLoaderSuppression() {
+  suppressLoaderUntilBufferEnds = false;
+  if (trackLoaderSafetyTimer !== null) {
+    clearTimeout(trackLoaderSafetyTimer);
+    trackLoaderSafetyTimer = null;
   }
-  playerManager.getTextTracksManager().setActiveByIds(
-    Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
 }
 
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
@@ -251,8 +329,10 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   const drm = loadRequest.media?.customData || loadRequest.customData || {};
   if (drm.suppressLoader) {
-    suppressTransientLoader(2500);
+    suppressLoaderUntilLoadComplete = true;
+    hideLoader();
   } else {
+    suppressLoaderUntilLoadComplete = false;
     showLoader();
   }
 
@@ -339,6 +419,8 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const code = event.detailedErrorCode || event.errorCode || event.reason || 'unknown';
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
+  suppressLoaderUntilLoadComplete = false;
+  clearTrackLoaderSuppression();
   showLoader(translate('cannotPlay'));
   showReceiverStatus(`${translate('playbackError')}: ${code}`, 'error');
   sendReceiverMessage({
@@ -350,10 +432,8 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   receiverIsBuffering = false;
-  if (deferredLoaderTimer !== null) {
-    clearTimeout(deferredLoaderTimer);
-    deferredLoaderTimer = null;
-  }
+  suppressLoaderUntilLoadComplete = false;
+  clearTrackLoaderSuppression();
   hideLoader();
   hideReceiverStatus();
   sendTrackCatalog();
@@ -364,10 +444,7 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
   if (receiverIsBuffering) {
     showBufferLoaderWhenNeeded();
   } else {
-    if (deferredLoaderTimer !== null) {
-      clearTimeout(deferredLoaderTimer);
-      deferredLoaderTimer = null;
-    }
+    clearTrackLoaderSuppression();
     hideLoader();
   }
 });
