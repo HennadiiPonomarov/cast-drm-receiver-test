@@ -58,28 +58,18 @@
         font-family: 'Inter', Arial, sans-serif;
       }
 
-      cast-media-player {
+      #receiver-video {
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        --background: #000;
-        --background-color: #000;
-        --background-image: none;
-        --logo-background: transparent;
-        --logo-color: transparent;
-        --logo-image: url('assets/transparent.svg');
-        --logo-size: 1px 1px;
-        --splash-background: #000;
-        --splash-color: #000;
-        --splash-image: url('assets/transparent.svg');
-        --splash-size: 1px 1px;
-        --font-family: 'Inter', Arial, sans-serif;
-        --theme-hue: 185;
-        --progress-color: #20c5c9;
-        --break-color: #20c5c9;
-        --spinner-image: none;
-        --buffering-image: none;
+        border: 0;
+        background: #000;
+        object-fit: contain;
+      }
+
+      #receiver-video::cue {
+        font-family: 'Inter', Arial, sans-serif;
       }
 
       #receiver-loader {
@@ -717,10 +707,10 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-4"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-5"></script>
   </head>
   <body>
-    <cast-media-player></cast-media-player>
+    <video id="receiver-video" class="castMediaElement" autoplay playsinline></video>
     <div id="receiver-idle" class="visible" aria-hidden="true">
       <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-idle-content">

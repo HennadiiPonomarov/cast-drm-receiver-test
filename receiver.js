@@ -6,7 +6,7 @@ const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const idleElement = document.getElementById('receiver-idle');
 const idleLabelElement = document.getElementById('receiver-idle-label');
-const playerElement = document.querySelector('cast-media-player');
+const mediaElement = document.getElementById('receiver-video');
 const transitionElement = document.getElementById('receiver-transition');
 const transitionArtworkElement = document.getElementById('receiver-transition-artwork');
 const transitionTitleElement = document.getElementById('receiver-transition-title');
@@ -456,16 +456,14 @@ function showPause(autoHide = false) {
   }
   updatePauseProgress();
   updateControlLabels();
-  const playerState = playerManager.getPlayerState();
-  const isPaused = playerState === cast.framework.messages.PlayerState.PAUSED;
   if (playStateIconElement) {
-    playStateIconElement.src = isPaused
+    playStateIconElement.src = mediaElement.paused
       ? 'assets/player/play.svg'
       : 'assets/player/pause.svg';
   }
   setLayerVisible(pauseElement, true);
   controlsTimer = clearTimer(controlsTimer);
-  if (autoHide && !isPaused) {
+  if (autoHide && !mediaElement.paused) {
     controlsTimer = setTimeout(hidePause, 2800);
   }
 }
@@ -922,10 +920,10 @@ function previewRemoteSeek(direction) {
 }
 
 function togglePlayback() {
-  if (playerManager.getPlayerState() === cast.framework.messages.PlayerState.PAUSED) {
-    playerManager.play();
+  if (mediaElement.paused) {
+    mediaElement.play().catch(() => {});
   } else {
-    playerManager.pause();
+    mediaElement.pause();
   }
   showPause(true);
 }
