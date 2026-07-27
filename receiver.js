@@ -1194,6 +1194,11 @@ const options = new cast.framework.CastReceiverOptions();
 // encrypted fMP4 segments on this receiver. HLS segment format fields above
 // are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
 options.useShakaForHls = true;
+// Required by CAF when the receiver provides its own media element instead of
+// the built-in cast-media-player UI.
+options.uiConfig = {
+  touchScreenOptimizedApp: true,
+};
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
