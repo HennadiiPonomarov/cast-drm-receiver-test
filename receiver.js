@@ -717,7 +717,6 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   currentPresentation = presentationFor(media, customData);
   resetPresentationLayers();
   hideIdle();
-  showTransition();
   loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl);
   if (customData.isLive) {
     media.streamType = cast.framework.messages.StreamType.LIVE;
@@ -839,7 +838,6 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideIdle();
   hideLoader();
   hideReceiverStatus();
-  scheduleTransitionHide();
   sendTrackCatalog();
 });
 
@@ -863,18 +861,14 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
 
 playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
   hideLoader();
-  showPause();
+  // CAF already renders the paused metadata and progress controls. A second
+  // custom pause surface would duplicate the title and timeline.
+  hidePause();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
   hidePause();
   hideEnd();
-});
-
-playerManager.addEventListener(cast.framework.events.EventType.TIME_UPDATE, () => {
-  if (pauseElement?.classList.contains('visible')) {
-    updatePauseProgress();
-  }
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_SEEK, event => {
