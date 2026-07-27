@@ -6,7 +6,7 @@ const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const idleElement = document.getElementById('receiver-idle');
 const idleLabelElement = document.getElementById('receiver-idle-label');
-const mediaElement = document.getElementById('receiver-video');
+const playerElement = document.getElementById('receiver-player');
 const transitionElement = document.getElementById('receiver-transition');
 const transitionArtworkElement = document.getElementById('receiver-transition-artwork');
 const transitionTitleElement = document.getElementById('receiver-transition-title');
@@ -59,6 +59,38 @@ let pendingSeek = null;
 let seekRepeatCount = 0;
 let seekCommitTimer = null;
 let seekResetTimer = null;
+
+function hideBuiltInPlayerOverlay() {
+  const root = playerElement?.shadowRoot;
+  if (!root) {
+    return false;
+  }
+
+  if (!root.getElementById('sweet-custom-ui-style')) {
+    const style = document.createElement('style');
+    style.id = 'sweet-custom-ui-style';
+    style.textContent = 'tv-overlay { display: none !important; }';
+    root.appendChild(style);
+  }
+
+  const overlay = root.querySelector('tv-overlay');
+  if (overlay) {
+    overlay.style.setProperty('display', 'none', 'important');
+  }
+  return Boolean(overlay);
+}
+
+function scheduleBuiltInOverlaySuppression() {
+  let attempts = 0;
+  const timer = setInterval(() => {
+    attempts += 1;
+    if (hideBuiltInPlayerOverlay() || attempts >= 40) {
+      clearInterval(timer);
+    }
+  }, 100);
+}
+
+scheduleBuiltInOverlaySuppression();
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -457,13 +489,13 @@ function showPause(autoHide = false) {
   updatePauseProgress();
   updateControlLabels();
   if (playStateIconElement) {
-    playStateIconElement.src = mediaElement.paused
+    playStateIconElement.src = isPlaybackPaused()
       ? 'assets/player/play.svg'
       : 'assets/player/pause.svg';
   }
   setLayerVisible(pauseElement, true);
   controlsTimer = clearTimer(controlsTimer);
-  if (autoHide && !mediaElement.paused) {
+  if (autoHide && !isPlaybackPaused()) {
     controlsTimer = setTimeout(hidePause, 2800);
   }
 }
@@ -920,12 +952,17 @@ function previewRemoteSeek(direction) {
 }
 
 function togglePlayback() {
-  if (mediaElement.paused) {
-    mediaElement.play().catch(() => {});
+  if (isPlaybackPaused()) {
+    playerManager.play();
   } else {
-    mediaElement.pause();
+    playerManager.pause();
   }
   showPause(true);
+}
+
+function isPlaybackPaused() {
+  return playerManager.getPlayerState()
+    !== cast.framework.messages.PlayerState.PLAYING;
 }
 
 function handleReceiverKey(event) {
@@ -1194,11 +1231,6 @@ const options = new cast.framework.CastReceiverOptions();
 // encrypted fMP4 segments on this receiver. HLS segment format fields above
 // are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
 options.useShakaForHls = true;
-// Required by CAF when the receiver provides its own media element instead of
-// the built-in cast-media-player UI.
-options.uiConfig = {
-  touchScreenOptimizedApp: true,
-};
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
