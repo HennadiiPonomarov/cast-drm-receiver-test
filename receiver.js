@@ -1,6 +1,7 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
+const RECEIVER_BUILD = 'track-switch-4';
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -202,6 +203,7 @@ function sendTrackCatalog() {
     const subtitleTracks = playerManager.getTextTracksManager().getTracks().map(toTrackPayload);
     sendReceiverMessage({
       type: 'tracks',
+      receiverBuild: RECEIVER_BUILD,
       audio: audioTracks,
       subtitles: subtitleTracks,
     });
@@ -255,14 +257,13 @@ function applyTrackSelection(message) {
   const sequence = ++trackSelectionSequence;
   let lastError = null;
 
-  // Track changes can emit BUFFERING while the current frame remains usable.
-  // Keep the receiver overlay hidden for the whole internal track switch.
-  suppressLoaderForTrackChange();
-
   const applyRequestedTracks = () => {
     if (sequence !== trackSelectionSequence) {
       return;
     }
+    // Track changes can emit BUFFERING while the current frame remains usable.
+    // Renew suppression for each Shaka retry so no retry flashes the overlay.
+    suppressLoaderForTrackChange();
     const audioManager = playerManager.getAudioTracksManager();
     const textManager = playerManager.getTextTracksManager();
     try {
