@@ -6,7 +6,7 @@ const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const idleElement = document.getElementById('receiver-idle');
 const idleLabelElement = document.getElementById('receiver-idle-label');
-const playerElement = document.querySelector('cast-media-player');
+const mediaElement = document.getElementById('receiver-video');
 const transitionElement = document.getElementById('receiver-transition');
 const transitionArtworkElement = document.getElementById('receiver-transition-artwork');
 const transitionTitleElement = document.getElementById('receiver-transition-title');
@@ -233,28 +233,6 @@ function translate(key) {
 }
 
 document.documentElement.lang = receiverLocale;
-
-// Apply the dark receiver shell directly to the custom element as well. CAF
-// keeps its player UI in a shadow root, so these variables must be set on the
-// element rather than only on body/html styles.
-if (playerElement) {
-  const playerStyles = {
-    '--background': '#000',
-    '--background-color': '#000',
-    '--background-image': 'none',
-    '--logo-background': 'transparent',
-    '--logo-color': 'transparent',
-    '--logo-image': "url('assets/transparent.svg')",
-    '--splash-background': '#000',
-    '--splash-color': '#000',
-    '--splash-image': "url('assets/transparent.svg')",
-    '--spinner-image': 'none',
-    '--buffering-image': 'none',
-  };
-  Object.entries(playerStyles).forEach(([name, value]) => {
-    playerElement.style.setProperty(name, value);
-  });
-}
 
 function sendReceiverMessage(payload) {
   try {
@@ -717,6 +695,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   currentPresentation = presentationFor(media, customData);
   resetPresentationLayers();
   hideIdle();
+  showTransition();
   loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl);
   if (customData.isLive) {
     media.streamType = cast.framework.messages.StreamType.LIVE;
@@ -838,6 +817,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideIdle();
   hideLoader();
   hideReceiverStatus();
+  scheduleTransitionHide();
   sendTrackCatalog();
 });
 
@@ -861,15 +841,21 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
 
 playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
   hideLoader();
-  // CAF already renders the paused metadata and progress controls. A second
-  // custom pause surface would duplicate the title and timeline.
-  hidePause();
+  showPause();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
   hidePause();
   hideEnd();
 });
+
+if (cast.framework.events.EventType.TIME_UPDATE) {
+  playerManager.addEventListener(cast.framework.events.EventType.TIME_UPDATE, () => {
+    if (pauseElement?.classList.contains('visible')) {
+      updatePauseProgress();
+    }
+  });
+}
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_SEEK, event => {
   const position = event.requestData?.currentTime;

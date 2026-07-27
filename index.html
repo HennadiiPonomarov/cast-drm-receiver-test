@@ -56,32 +56,20 @@
         overflow: hidden;
         background: #000;
         font-family: 'Inter', Arial, sans-serif;
-        --playback-logo-image: url('assets/sweet-tv-logo-light.svg');
       }
 
-      cast-media-player {
+      #receiver-video {
         position: fixed;
         inset: 0;
         width: 100%;
         height: 100%;
-        --background: #000;
-        --background-color: #000;
-        --background-image: none;
-        /* CAF shows this mark only in its controls/idle UI, never over video. */
-        --logo-background: transparent;
-        --logo-color: transparent;
-        --logo-image: url('assets/transparent.svg');
-        --logo-size: 1px 1px;
-        --splash-background: #000;
-        --splash-color: #000;
-        --splash-image: url('assets/transparent.svg');
-        --splash-size: 1px 1px;
-        --font-family: 'Inter', Arial, sans-serif;
-        --theme-hue: 185;
-        --progress-color: #20c5c9;
-        --break-color: #20c5c9;
-        --spinner-image: none;
-        --buffering-image: none;
+        border: 0;
+        background: #000;
+        object-fit: contain;
+      }
+
+      #receiver-video::cue {
+        font-family: 'Inter', Arial, sans-serif;
       }
 
       #receiver-loader {
@@ -393,6 +381,14 @@
         bottom: 10vh;
       }
 
+      #receiver-pause-logo {
+        position: absolute;
+        top: 5vh;
+        left: 5vw;
+        width: min(152px, 20vw);
+        height: auto;
+      }
+
       #receiver-pause-label {
         margin-bottom: 12px;
         color: #20c5c9;
@@ -564,10 +560,10 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-polish-2"></script>
+    <script defer src="receiver.js?v=receiver-custom-ui-1"></script>
   </head>
   <body>
-    <cast-media-player></cast-media-player>
+    <video id="receiver-video" class="castMediaElement" autoplay playsinline></video>
     <div id="receiver-idle" class="visible" aria-hidden="true">
       <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-idle-content">
@@ -600,6 +596,7 @@
       <span id="receiver-toast-label"></span>
     </div>
     <div id="receiver-pause" class="receiver-layer" aria-hidden="true">
+      <img id="receiver-pause-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-pause-content">
         <div id="receiver-pause-label"></div>
         <h1 id="receiver-pause-title"></h1>
