@@ -4,7 +4,7 @@ const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
-const mediaElement = document.getElementById('receiver-video');
+const playerElement = document.querySelector('cast-media-player');
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
 // therefore the receiver device locale, independent of the sender phone.
@@ -98,6 +98,28 @@ function translate(key) {
 }
 
 document.documentElement.lang = receiverLocale;
+
+// Apply the dark receiver shell directly to the custom element as well. CAF
+// keeps its player UI in a shadow root, so these variables must be set on the
+// element rather than only on body/html styles.
+if (playerElement) {
+  const playerStyles = {
+    '--background': '#000',
+    '--background-color': '#000',
+    '--background-image': 'none',
+    '--logo-background': 'transparent',
+    '--logo-color': 'transparent',
+    '--logo-image': "url('assets/transparent.svg')",
+    '--splash-background': '#000',
+    '--splash-color': '#000',
+    '--splash-image': "url('assets/transparent.svg')",
+    '--spinner-image': 'none',
+    '--buffering-image': 'none',
+  };
+  Object.entries(playerStyles).forEach(([name, value]) => {
+    playerElement.style.setProperty(name, value);
+  });
+}
 
 function sendReceiverMessage(payload) {
   try {
