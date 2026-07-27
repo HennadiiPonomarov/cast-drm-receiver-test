@@ -725,7 +725,10 @@ function showSeekPreview(positionSeconds, autoHide = false) {
   if (seekPreviewElement) {
     const duration = playerManager.getDurationSec();
     if (Number.isFinite(duration) && duration > 0) {
-      const percentage = Math.max(8, Math.min(92, (position / duration) * 100));
+      // The Smart TV timeline spans from 5vw to 95vw. Keep the preview
+      // anchored to that same coordinate system so it follows the scrubber.
+      const timelinePercentage = 5 + ((position / duration) * 90);
+      const percentage = Math.max(10, Math.min(90, timelinePercentage));
       seekPreviewElement.style.left = `${percentage}%`;
     } else {
       seekPreviewElement.style.left = '50%';
