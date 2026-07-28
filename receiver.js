@@ -958,9 +958,7 @@ function renderOptions() {
       const label = document.createElement('span');
       label.className = 'receiver-option-label';
       label.textContent = item.label;
-      const check = document.createElement('span');
-      check.className = 'receiver-option-check';
-      row.append(label, check);
+      row.append(label);
       optionsListElement.appendChild(row);
     });
     requestAnimationFrame(() => {
@@ -1015,12 +1013,15 @@ function applySelectedOption() {
   if (!isSelectableOption(item)) {
     return;
   }
+  let returnControl = '';
   if (item.kind === 'audio-track') {
     playerManager.getAudioTracksManager().setActiveById(item.id);
     setTimeout(notifyTrackSelection, 0);
+    returnControl = 'audio';
   } else if (item.kind === 'subtitle-track') {
     setActiveSubtitleIds(item.id < 0 ? [] : [item.id]);
     setTimeout(notifyTrackSelection, 0);
+    returnControl = 'subtitles';
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
     applySubtitleStyle();
@@ -1038,16 +1039,15 @@ function applySelectedOption() {
     });
     currentPresentation.maxHeight = item.id;
     updateControlLabels();
+    returnControl = 'quality';
   }
-  menuFocusArea = 'close';
+  if (returnControl) {
+    hideOptions();
+    showPause(true);
+    setControlsFocus('actions', CONTROL_ORDER.indexOf(returnControl));
+    return;
+  }
   renderOptions();
-  for (const delay of [0, 100, 300]) {
-    setTimeout(() => {
-      if (isOptionsVisible() && menuFocusArea === 'close') {
-        renderOptions();
-      }
-    }, delay);
-  }
 }
 
 function hideError() {

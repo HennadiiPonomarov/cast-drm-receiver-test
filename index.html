@@ -424,7 +424,7 @@
       #receiver-pause-progress {
         position: relative;
         width: 100%;
-        height: 4px;
+        height: 2px;
         background: rgba(255, 255, 255, 0.24);
       }
 
@@ -433,11 +433,11 @@
         position: absolute;
         top: 50%;
         left: var(--progress, 0%);
-        width: 12px;
-        height: 12px;
+        width: 10px;
+        height: 10px;
         border-radius: 50%;
         background: #f7fafb;
-        box-shadow: 0 0 0 4px rgba(247, 250, 251, 0.12);
+        box-shadow: 0 0 0 3px rgba(247, 250, 251, 0.12);
         transform: translate(-50%, -50%);
         transition: background 150ms ease, box-shadow 150ms ease;
       }
@@ -476,7 +476,7 @@
       .receiver-control-group {
         display: flex;
         align-items: center;
-        gap: clamp(20px, 1.3vw, 25px);
+        gap: clamp(12px, 0.9vw, 18px);
       }
 
       .receiver-control {
@@ -484,8 +484,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: clamp(56px, 4.43vw, 85px);
-        height: clamp(56px, 4.43vw, 85px);
+        width: clamp(52px, 3.75vw, 68px);
+        height: clamp(52px, 3.75vw, 68px);
         border: 2px solid transparent;
         border-radius: 50%;
         background: rgba(255, 255, 255, 0.14);
@@ -495,14 +495,14 @@
       }
 
       .receiver-control.primary {
-        width: clamp(56px, 4.43vw, 85px);
-        height: clamp(56px, 4.43vw, 85px);
+        width: clamp(52px, 3.75vw, 68px);
+        height: clamp(52px, 3.75vw, 68px);
         background: rgba(255, 255, 255, 0.14);
       }
 
       .receiver-control.option {
-        width: clamp(56px, 4.43vw, 85px);
-        min-width: clamp(56px, 4.43vw, 85px);
+        width: clamp(52px, 3.75vw, 68px);
+        min-width: clamp(52px, 3.75vw, 68px);
         padding: 0;
         border-radius: 50%;
       }
@@ -522,10 +522,10 @@
         position: absolute;
         top: calc(100% + 6px);
         left: 50%;
-        width: 132px;
+        width: 112px;
         min-height: 28px;
         color: #f7fafb;
-        font: 600 clamp(11px, 0.72vw, 13px)/1.15 'Inter', Arial, sans-serif;
+        font: 600 clamp(10px, 0.65vw, 12px)/1.15 'Inter', Arial, sans-serif;
         opacity: 0;
         text-align: center;
         transform: translateX(-50%);
@@ -549,9 +549,9 @@
       }
 
       #receiver-pause-timeline.focused #receiver-pause-progress {
-        height: 6px;
+        height: 4px;
         background: rgba(255, 255, 255, 0.36);
-        box-shadow: 0 0 0 3px rgba(32, 197, 201, 0.1);
+        box-shadow: 0 0 0 2px rgba(32, 197, 201, 0.1);
       }
 
       #receiver-pause-timeline.focused #receiver-pause-progress-fill {
@@ -560,7 +560,7 @@
 
       #receiver-pause-timeline.focused #receiver-pause-progress::after {
         background: #20c5c9;
-        box-shadow: 0 0 0 4px rgba(32, 197, 201, 0.16);
+        box-shadow: 0 0 0 3px rgba(32, 197, 201, 0.16);
       }
 
       #receiver-options {
@@ -669,41 +669,8 @@
         white-space: nowrap;
       }
 
-      .receiver-option-check {
-        position: relative;
-        flex: 0 0 auto;
-        width: 19px;
-        height: 19px;
-        margin-left: auto;
-        border: 2px solid rgba(255, 255, 255, 0.22);
-        border-radius: 50%;
-        box-sizing: border-box;
-        opacity: 0;
-        transform: scale(0.82);
-        transition: opacity 140ms ease, transform 140ms ease;
-      }
-
       .receiver-option-row.active {
         color: #20c5c9;
-      }
-
-      .receiver-option-row.active .receiver-option-check {
-        border-color: #20c5c9;
-        background: #20c5c9;
-        opacity: 1;
-        transform: scale(1);
-      }
-
-      .receiver-option-row.active .receiver-option-check::after {
-        content: '';
-        position: absolute;
-        top: 4px;
-        left: 3px;
-        width: 8px;
-        height: 4px;
-        border-bottom: 2px solid #071015;
-        border-left: 2px solid #071015;
-        transform: rotate(-45deg);
       }
 
       .receiver-option-row.focused {
@@ -882,7 +849,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-22"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-23"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
