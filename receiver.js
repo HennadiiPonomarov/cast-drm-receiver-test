@@ -20,19 +20,17 @@ const pauseTitleElement = document.getElementById('receiver-pause-title');
 const pauseMetaElement = document.getElementById('receiver-pause-meta');
 const pauseProgressElement = document.getElementById('receiver-pause-progress-fill');
 const pauseProgressTrackElement = document.getElementById('receiver-pause-progress');
+const pauseTimelineElement = document.getElementById('receiver-pause-timeline');
 const pauseTimeElement = document.getElementById('receiver-pause-time');
 const pauseDurationElement = document.getElementById('receiver-pause-duration');
 const playStateIconElement = document.getElementById('receiver-play-state-icon');
+const controlElements = Array.from(document.querySelectorAll('[data-control]'));
 const audioLabelElement = document.getElementById('receiver-audio-label');
 const subtitlesLabelElement = document.getElementById('receiver-subtitles-label');
 const qualityLabelElement = document.getElementById('receiver-quality-label');
 const optionsElement = document.getElementById('receiver-options');
 const optionsTitleElement = document.getElementById('receiver-options-title');
 const optionsListElement = document.getElementById('receiver-options-list');
-const optionsTabElements = Array.from(document.querySelectorAll('.receiver-options-tab'));
-const optionsAudioTabElement = document.getElementById('receiver-options-audio-tab');
-const optionsSubtitlesTabElement = document.getElementById('receiver-options-subtitles-tab');
-const optionsQualityTabElement = document.getElementById('receiver-options-quality-tab');
 const seekPreviewElement = document.getElementById('receiver-seek-preview');
 const seekFrameElement = document.getElementById('receiver-seek-frame');
 const seekImageElement = document.getElementById('receiver-seek-image');
@@ -60,10 +58,30 @@ let menuSelection = 0;
 let audioTrackCatalog = [];
 let subtitleTrackCatalog = [];
 let pendingSeek = null;
+let previewSeekPosition = null;
 let seekRepeatCount = 0;
 let seekCommitTimer = null;
+let seekSettleTimer = null;
 let seekResetTimer = null;
 let nativeOverlayObserver = null;
+let controlsFocusArea = 'timeline';
+let controlSelection = 1;
+let suppressBackKeyUp = false;
+let subtitleFontScale = 1;
+let subtitleForegroundColor = '#FFFFFFFF';
+let subtitleStyleDirty = false;
+
+const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
+const SUBTITLE_SIZE_OPTIONS = [
+  {value: 0.75, labelKey: 'small'},
+  {value: 1, labelKey: 'medium'},
+  {value: 1.25, labelKey: 'large'},
+];
+const SUBTITLE_COLOR_OPTIONS = [
+  {value: '#FFFFFFFF', labelKey: 'white'},
+  {value: '#FFF200FF', labelKey: 'yellow'},
+  {value: '#20C5C9FF', labelKey: 'cyan'},
+];
 
 function suppressNativePlayerOverlay() {
   const playerShadowRoot = playerElement?.shadowRoot;
@@ -118,6 +136,9 @@ const translations = {
     tryAgain: 'Please try again or choose another video.',
     paused: 'Paused', finished: 'Playback finished', code: 'Code',
     audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', auto: 'Auto', off: 'Off',
+    subtitleSize: 'Subtitle size', subtitleColor: 'Subtitle color',
+    small: 'Small', medium: 'Medium', large: 'Large',
+    white: 'White', yellow: 'Yellow', cyan: 'Cyan',
     live: 'Live', recording: 'Recording', movie: 'Movie',
   },
   uk: {
@@ -127,6 +148,9 @@ const translations = {
     tryAgain: 'Спробуйте ще раз або виберіть інше відео.',
     paused: 'Пауза', finished: 'Відтворення завершено', code: 'Код',
     audio: 'Аудіо', subtitles: 'Субтитри', quality: 'Якість', auto: 'Авто', off: 'Вимкнено',
+    subtitleSize: 'Розмір субтитрів', subtitleColor: 'Колір субтитрів',
+    small: 'Малий', medium: 'Середній', large: 'Великий',
+    white: 'Білий', yellow: 'Жовтий', cyan: 'Бірюзовий',
     live: 'Наживо', recording: 'Запис', movie: 'Фільм',
   },
   ru: {
@@ -136,6 +160,9 @@ const translations = {
     tryAgain: 'Попробуйте ещё раз или выберите другое видео.',
     paused: 'Пауза', finished: 'Просмотр завершён', code: 'Код',
     audio: 'Аудио', subtitles: 'Субтитры', quality: 'Качество', auto: 'Авто', off: 'Выключены',
+    subtitleSize: 'Размер субтитров', subtitleColor: 'Цвет субтитров',
+    small: 'Маленький', medium: 'Средний', large: 'Большой',
+    white: 'Белый', yellow: 'Жёлтый', cyan: 'Бирюзовый',
     live: 'Прямой эфир', recording: 'Запись', movie: 'Фильм',
   },
   sk: {
@@ -145,6 +172,9 @@ const translations = {
     tryAgain: 'Skúste to znova alebo vyberte iné video.',
     paused: 'Pozastavené', finished: 'Prehrávanie sa skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuté',
+    subtitleSize: 'Veľkosť titulkov', subtitleColor: 'Farba titulkov',
+    small: 'Malé', medium: 'Stredné', large: 'Veľké',
+    white: 'Biela', yellow: 'Žltá', cyan: 'Tyrkysová',
     live: 'Naživo', recording: 'Záznam', movie: 'Film',
   },
   cs: {
@@ -154,6 +184,9 @@ const translations = {
     tryAgain: 'Zkuste to znovu nebo vyberte jiné video.',
     paused: 'Pozastaveno', finished: 'Přehrávání skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuto',
+    subtitleSize: 'Velikost titulků', subtitleColor: 'Barva titulků',
+    small: 'Malé', medium: 'Střední', large: 'Velké',
+    white: 'Bílá', yellow: 'Žlutá', cyan: 'Tyrkysová',
     live: 'Živě', recording: 'Záznam', movie: 'Film',
   },
   hu: {
@@ -445,6 +478,29 @@ function hidePause() {
   controlsTimer = clearTimer(controlsTimer);
   hideOptions();
   setLayerVisible(pauseElement, false);
+  hideSeekPreview();
+}
+
+function controlsAreVisible() {
+  return Boolean(pauseElement?.classList.contains('visible'));
+}
+
+function renderControlsFocus() {
+  pauseTimelineElement?.classList.toggle('focused', controlsFocusArea === 'timeline');
+  controlElements.forEach(element => {
+    const index = CONTROL_ORDER.indexOf(element.dataset.control);
+    element.classList.toggle(
+      'focused',
+      controlsFocusArea === 'actions' && index === controlSelection);
+  });
+}
+
+function setControlsFocus(area, selection = controlSelection) {
+  controlsFocusArea = area === 'actions' ? 'actions' : 'timeline';
+  if (controlsFocusArea === 'actions') {
+    controlSelection = Math.max(0, Math.min(CONTROL_ORDER.length - 1, selection));
+  }
+  renderControlsFocus();
 }
 
 function scheduleControlsHide(delay = 2800) {
@@ -468,8 +524,18 @@ function scheduleControlsHide(delay = 2800) {
   }, delay);
 }
 
-function updatePauseProgress() {
-  const position = playerManager.getCurrentTimeSec();
+function updatePauseProgress(positionOverride = null) {
+  const actualPosition = playerManager.getCurrentTimeSec();
+  const isScrubbing = positionOverride !== null
+    || pendingSeek !== null
+    || previewSeekPosition !== null;
+  const position = positionOverride !== null && Number.isFinite(Number(positionOverride))
+    ? Number(positionOverride)
+    : (pendingSeek !== null && Number.isFinite(Number(pendingSeek))
+      ? Number(pendingSeek)
+      : (previewSeekPosition !== null && Number.isFinite(Number(previewSeekPosition))
+        ? Number(previewSeekPosition)
+        : actualPosition));
   const duration = playerManager.getDurationSec();
   const boundedDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const percentage = boundedDuration > 0
@@ -481,6 +547,7 @@ function updatePauseProgress() {
   if (pauseProgressTrackElement) {
     pauseProgressTrackElement.style.setProperty('--progress', `${percentage}%`);
   }
+  pauseTimelineElement?.classList.toggle('scrubbing', isScrubbing);
   if (pauseTimeElement) {
     pauseTimeElement.textContent = boundedDuration > 0 ? formatTime(position) : presentationBadge();
   }
@@ -499,21 +566,13 @@ function updateControlLabels() {
   if (qualityLabelElement) {
     qualityLabelElement.textContent = translate('quality');
   }
-  if (optionsAudioTabElement) {
-    optionsAudioTabElement.textContent = translate('audio');
-  }
-  if (optionsSubtitlesTabElement) {
-    optionsSubtitlesTabElement.textContent = translate('subtitles');
-  }
-  if (optionsQualityTabElement) {
-    optionsQualityTabElement.textContent = translate('quality');
-  }
 }
 
 function showPause(autoHide = false) {
   if (!currentPresentation?.title || playbackHasError) {
     return;
   }
+  const wasVisible = controlsAreVisible();
   hideTransition();
   if (pauseLabelElement) {
     pauseLabelElement.textContent = currentPresentation.subtitle || presentationBadge();
@@ -532,9 +591,54 @@ function showPause(autoHide = false) {
       : 'assets/player/pause.svg';
   }
   setLayerVisible(pauseElement, true);
+  if (!wasVisible) {
+    setControlsFocus('timeline');
+  } else {
+    renderControlsFocus();
+  }
   controlsTimer = clearTimer(controlsTimer);
   if (autoHide) {
     scheduleControlsHide();
+  }
+}
+
+function normalizedRgba(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function syncSubtitleStyleState() {
+  if (subtitleStyleDirty) {
+    return;
+  }
+  try {
+    const style = playerManager.getTextTracksManager().getTextTracksStyle();
+    if (Number.isFinite(Number(style?.fontScale))) {
+      subtitleFontScale = Number(style.fontScale);
+    }
+    if (style?.foregroundColor) {
+      subtitleForegroundColor = normalizedRgba(style.foregroundColor);
+    }
+  } catch (error) {
+    console.warn('[SWEET Receiver] Subtitle style is not ready', error);
+  }
+}
+
+function applySubtitleStyle(markDirty = true) {
+  try {
+    const manager = playerManager.getTextTracksManager();
+    const current = manager.getTextTracksStyle();
+    const style = new cast.framework.messages.TextTrackStyle();
+    if (current) {
+      Object.assign(style, current);
+    }
+    style.fontScale = subtitleFontScale;
+    style.foregroundColor = subtitleForegroundColor;
+    manager.setTextTrackStyle(style);
+    if (markDirty) {
+      subtitleStyleDirty = true;
+    }
+  } catch (error) {
+    console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
 }
 
@@ -542,6 +646,7 @@ function optionItems(section = menuSection) {
   if (section === 'audio') {
     return audioTrackCatalog.map(track => ({
       id: track.trackId,
+      kind: 'audio-track',
       label: track.name || track.language || String(track.trackId),
       selected: track.trackId === playerManager.getAudioTracksManager().getActiveId(),
     }));
@@ -549,20 +654,72 @@ function optionItems(section = menuSection) {
   if (section === 'subtitles') {
     const activeIds = playerManager.getTextTracksManager().getActiveIds();
     return [
-      {id: -1, label: translate('off'), selected: activeIds.length === 0},
+      {
+        id: -1,
+        kind: 'subtitle-track',
+        label: translate('off'),
+        selected: activeIds.length === 0,
+      },
       ...subtitleTrackCatalog.map(track => ({
         id: track.trackId,
+        kind: 'subtitle-track',
         label: track.name || track.language || String(track.trackId),
         selected: activeIds.includes(track.trackId),
+      })),
+      {
+        id: 'subtitle-size-heading',
+        kind: 'heading',
+        label: translate('subtitleSize'),
+        selectable: false,
+      },
+      ...SUBTITLE_SIZE_OPTIONS.map(option => ({
+        id: `subtitle-size-${option.value}`,
+        kind: 'subtitle-size',
+        value: option.value,
+        label: translate(option.labelKey),
+        selected: Math.abs(subtitleFontScale - option.value) < 0.01,
+      })),
+      {
+        id: 'subtitle-color-heading',
+        kind: 'heading',
+        label: translate('subtitleColor'),
+        selectable: false,
+      },
+      ...SUBTITLE_COLOR_OPTIONS.map(option => ({
+        id: `subtitle-color-${option.labelKey}`,
+        kind: 'subtitle-color',
+        value: option.value,
+        swatch: option.value,
+        label: translate(option.labelKey),
+        selected: normalizedRgba(subtitleForegroundColor) === normalizedRgba(option.value),
       })),
     ];
   }
   return (currentPresentation?.qualityOptions || []).map(option => ({
     id: option.maxHeight,
+    kind: 'quality',
     label: option.label,
     selected: option.maxHeight === currentPresentation.maxHeight
       || (option.maxHeight < 0 && currentPresentation.maxHeight < 0),
   }));
+}
+
+function isSelectableOption(item) {
+  return Boolean(item && item.selectable !== false && item.kind !== 'heading');
+}
+
+function nearestSelectableIndex(items, index, direction = 1) {
+  if (items.length === 0) {
+    return 0;
+  }
+  let next = Math.max(0, Math.min(items.length - 1, index));
+  for (let attempts = 0; attempts < items.length; attempts += 1) {
+    if (isSelectableOption(items[next])) {
+      return next;
+    }
+    next = (next + direction + items.length) % items.length;
+  }
+  return 0;
 }
 
 function renderOptions() {
@@ -571,18 +728,30 @@ function renderOptions() {
   if (optionsTitleElement) {
     optionsTitleElement.textContent = translate(menuSection);
   }
-  optionsTabElements.forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.section === menuSection);
-  });
   if (optionsListElement) {
     optionsListElement.textContent = '';
     items.forEach((item, index) => {
       const row = document.createElement('div');
+      if (item.kind === 'heading') {
+        row.className = 'receiver-option-row group';
+        const heading = document.createElement('span');
+        heading.className = 'receiver-option-label';
+        heading.textContent = item.label;
+        row.appendChild(heading);
+        optionsListElement.appendChild(row);
+        return;
+      }
       row.className = [
         'receiver-option-row',
         index === menuSelection ? 'focused' : '',
         item.selected ? 'active' : '',
       ].filter(Boolean).join(' ');
+      if (item.swatch) {
+        const swatch = document.createElement('span');
+        swatch.className = 'receiver-option-swatch';
+        swatch.style.background = item.swatch.slice(0, 7);
+        row.appendChild(swatch);
+      }
       const label = document.createElement('span');
       label.className = 'receiver-option-label';
       label.textContent = item.label;
@@ -602,9 +771,12 @@ function renderOptions() {
 function showOptions(section = menuSection) {
   menuSection = section;
   updateControlLabels();
+  if (section === 'subtitles') {
+    syncSubtitleStyleState();
+  }
   const items = optionItems();
   const selectedIndex = items.findIndex(item => item.selected);
-  menuSelection = selectedIndex >= 0 ? selectedIndex : 0;
+  menuSelection = nearestSelectableIndex(items, selectedIndex >= 0 ? selectedIndex : 0);
   renderOptions();
   optionsElement?.classList.add('visible');
   optionsElement?.setAttribute('aria-hidden', 'false');
@@ -633,16 +805,26 @@ function notifyTrackSelection() {
 
 function applySelectedOption() {
   const item = optionItems()[menuSelection];
-  if (!item) {
+  if (!isSelectableOption(item)) {
     return;
   }
-  if (menuSection === 'audio') {
+  if (item.kind === 'audio-track') {
     playerManager.getAudioTracksManager().setActiveById(item.id);
     setTimeout(notifyTrackSelection, 0);
-  } else if (menuSection === 'subtitles') {
+  } else if (item.kind === 'subtitle-track') {
     playerManager.getTextTracksManager().setActiveByIds(item.id < 0 ? [] : [item.id]);
     setTimeout(notifyTrackSelection, 0);
-  } else {
+  } else if (item.kind === 'subtitle-size') {
+    subtitleFontScale = item.value;
+    applySubtitleStyle();
+    renderOptions();
+    return;
+  } else if (item.kind === 'subtitle-color') {
+    subtitleForegroundColor = item.value;
+    applySubtitleStyle();
+    renderOptions();
+    return;
+  } else if (item.kind === 'quality') {
     const tracks = activeTrackSelection();
     sendReceiverMessage({
       type: 'quality-request',
@@ -876,7 +1058,9 @@ function renderThumbnailCue(cue) {
 
 function showSeekPreview(positionSeconds, autoHide = false) {
   const position = Math.max(0, Number(positionSeconds) || 0);
+  previewSeekPosition = position;
   seekPreviewTimer = clearTimer(seekPreviewTimer);
+  updatePauseProgress(position);
   if (seekTimeElement) {
     seekTimeElement.textContent = formatTime(position);
   }
@@ -884,11 +1068,18 @@ function showSeekPreview(positionSeconds, autoHide = false) {
   if (seekPreviewElement) {
     const duration = playerManager.getDurationSec();
     if (Number.isFinite(duration) && duration > 0) {
-      // The Smart TV timeline spans from 5vw to 95vw. Keep the preview
-      // anchored to that same coordinate system so it follows the scrubber.
-      const timelinePercentage = 5 + ((position / duration) * 90);
-      const percentage = Math.max(10, Math.min(90, timelinePercentage));
-      seekPreviewElement.style.left = `${percentage}%`;
+      const ratio = Math.max(0, Math.min(1, position / duration));
+      const timelineBounds = pauseProgressTrackElement?.getBoundingClientRect();
+      if (timelineBounds?.width > 0) {
+        const previewHalfWidth = (SEEK_PREVIEW_WIDTH / 2) + 12;
+        const timelineX = timelineBounds.left + (timelineBounds.width * ratio);
+        const clampedX = Math.max(
+          previewHalfWidth,
+          Math.min(window.innerWidth - previewHalfWidth, timelineX));
+        seekPreviewElement.style.left = `${clampedX}px`;
+      } else {
+        seekPreviewElement.style.left = `${Math.max(10, Math.min(90, ratio * 100))}%`;
+      }
     } else {
       seekPreviewElement.style.left = '50%';
     }
@@ -901,12 +1092,23 @@ function showSeekPreview(positionSeconds, autoHide = false) {
 
 function hideSeekPreview() {
   seekPreviewTimer = clearTimer(seekPreviewTimer);
+  previewSeekPosition = null;
   if (seekPreviewElement) {
     seekPreviewElement.classList.remove('visible');
+  }
+  if (controlsAreVisible()) {
+    updatePauseProgress();
   }
 }
 
 function resetPresentationLayers() {
+  pendingSeek = null;
+  previewSeekPosition = null;
+  seekCommitTimer = clearTimer(seekCommitTimer);
+  seekSettleTimer = clearTimer(seekSettleTimer);
+  seekResetTimer = clearTimer(seekResetTimer);
+  seekRepeatCount = 0;
+  pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
   hideEnd();
   hidePause();
@@ -1036,19 +1238,45 @@ function isOptionsVisible() {
   return Boolean(optionsElement?.classList.contains('visible'));
 }
 
-function cycleMenuSection(direction) {
-  const sections = ['audio', 'subtitles', 'quality'];
-  let index = sections.indexOf(menuSection);
-  for (let attempts = 0; attempts < sections.length; attempts += 1) {
-    index = (index + direction + sections.length) % sections.length;
-    if (optionItems(sections[index]).length > 0) {
-      menuSection = sections[index];
-      const items = optionItems(menuSection);
-      const selectedIndex = items.findIndex(item => item.selected);
-      menuSelection = selectedIndex >= 0 ? selectedIndex : 0;
+function moveMenuSelection(direction) {
+  const items = optionItems();
+  if (items.length === 0) {
+    return;
+  }
+  let next = menuSelection;
+  for (let attempts = 0; attempts < items.length; attempts += 1) {
+    next = (next + direction + items.length) % items.length;
+    if (isSelectableOption(items[next])) {
+      menuSelection = next;
       renderOptions();
       return;
     }
+  }
+}
+
+function focusedControlName() {
+  return CONTROL_ORDER[controlSelection] || 'play';
+}
+
+function showOptionsForControl(control) {
+  if (control === 'audio' || control === 'subtitles' || control === 'quality') {
+    showPause();
+    showOptions(control);
+    return true;
+  }
+  return false;
+}
+
+function activateFocusedControl() {
+  const control = focusedControlName();
+  if (control === 'rewind') {
+    previewRemoteSeek(-1);
+  } else if (control === 'play') {
+    togglePlayback();
+  } else if (control === 'forward') {
+    previewRemoteSeek(1);
+  } else {
+    showOptionsForControl(control);
   }
 }
 
@@ -1077,13 +1305,20 @@ function previewRemoteSeek(direction) {
   seekCommitTimer = clearTimer(seekCommitTimer);
   seekCommitTimer = setTimeout(() => {
     const target = pendingSeek;
-    pendingSeek = null;
     seekCommitTimer = null;
     if (Number.isFinite(target)) {
       playerManager.seek(target);
     }
     hideSeekPreview();
     showPause(true);
+    seekSettleTimer = clearTimer(seekSettleTimer);
+    seekSettleTimer = setTimeout(() => {
+      pendingSeek = null;
+      seekSettleTimer = null;
+      if (controlsAreVisible()) {
+        updatePauseProgress();
+      }
+    }, 2500);
   }, 650);
 }
 
@@ -1101,6 +1336,26 @@ function isPlaybackPaused() {
     !== cast.framework.messages.PlayerState.PLAYING;
 }
 
+function isBackKeyEvent(event) {
+  const key = event.key || '';
+  const code = event.keyCode;
+  return key === 'Escape'
+    || key === 'Backspace'
+    || key === 'GoBack'
+    || key === 'BrowserBack'
+    || code === 4
+    || code === 8
+    || code === 27
+    || code === 461
+    || code === 10009;
+}
+
+function consumeRemoteKey(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.stopImmediatePropagation?.();
+}
+
 function handleReceiverKey(event) {
   const key = event.key || '';
   const code = event.keyCode;
@@ -1109,48 +1364,88 @@ function handleReceiverKey(event) {
   const up = key === 'ArrowUp' || code === 38;
   const down = key === 'ArrowDown' || code === 40;
   const enter = key === 'Enter' || key === ' ' || code === 13 || code === 23;
-  const back = key === 'Escape' || key === 'Backspace' || code === 4 || code === 27;
+  const back = isBackKeyEvent(event);
   const playPause = key === 'MediaPlayPause' || code === 179;
 
   if (!(left || right || up || down || enter || back || playPause)) {
     return;
   }
-  event.preventDefault();
-  event.stopPropagation();
+
+  if (back && !isOptionsVisible() && !controlsAreVisible()) {
+    return;
+  }
+  consumeRemoteKey(event);
 
   if (isOptionsVisible()) {
-    if (left || right) {
-      cycleMenuSection(left ? -1 : 1);
-    } else if (up || down) {
-      const items = optionItems();
-      if (items.length > 0) {
-        menuSelection = (menuSelection + (up ? -1 : 1) + items.length) % items.length;
-        renderOptions();
-      }
+    if (up || down) {
+      moveMenuSelection(up ? -1 : 1);
     } else if (enter) {
       applySelectedOption();
-    } else if (back) {
+    } else if (back || left) {
+      suppressBackKeyUp = back;
       hideOptions();
       showPause(true);
     }
     return;
   }
 
-  if (left || right) {
-    previewRemoteSeek(left ? -1 : 1);
-  } else if (down) {
-    showPause();
-    showOptions('audio');
-  } else if (up) {
-    showPause(true);
-  } else if (enter || playPause) {
-    togglePlayback();
-  } else if (back) {
+  if (back) {
+    suppressBackKeyUp = true;
     hidePause();
+    return;
+  }
+
+  if (!controlsAreVisible()) {
+    showPause(true);
+  }
+
+  if (playPause) {
+    togglePlayback();
+    return;
+  }
+
+  if (controlsFocusArea === 'timeline') {
+    if (left || right) {
+      previewRemoteSeek(left ? -1 : 1);
+    } else if (down) {
+      setControlsFocus('actions', 1);
+      showPause(true);
+    } else if (enter) {
+      togglePlayback();
+    } else if (up) {
+      showPause(true);
+    }
+    return;
+  }
+
+  if (left || right) {
+    const direction = left ? -1 : 1;
+    controlSelection = (
+      controlSelection + direction + CONTROL_ORDER.length
+    ) % CONTROL_ORDER.length;
+    setControlsFocus('actions', controlSelection);
+    showPause(true);
+  } else if (up) {
+    setControlsFocus('timeline');
+    showPause(true);
+  } else if (down) {
+    if (!showOptionsForControl(focusedControlName())) {
+      showPause(true);
+    }
+  } else if (enter) {
+    activateFocusedControl();
   }
 }
 
-document.addEventListener('keydown', handleReceiverKey, true);
+function handleReceiverKeyUp(event) {
+  if (suppressBackKeyUp && isBackKeyEvent(event)) {
+    consumeRemoteKey(event);
+    suppressBackKeyUp = false;
+  }
+}
+
+window.addEventListener('keydown', handleReceiverKey, true);
+window.addEventListener('keyup', handleReceiverKeyUp, true);
 
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
 // explicit for receivers that do not infer it reliably from the playlist.
@@ -1285,6 +1580,11 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   playbackHasError = false;
   restoreRequestedTrackSelection();
+  if (subtitleStyleDirty) {
+    applySubtitleStyle(false);
+  } else {
+    syncSubtitleStyleState();
+  }
   suppressNativePlayerOverlay();
   hideIdle();
   hideLoader();
@@ -1328,6 +1628,13 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
 
 if (cast.framework.events.EventType.TIME_UPDATE) {
   playerManager.addEventListener(cast.framework.events.EventType.TIME_UPDATE, () => {
+    if (pendingSeek !== null) {
+      const actualPosition = playerManager.getCurrentTimeSec();
+      if (Number.isFinite(actualPosition) && Math.abs(actualPosition - pendingSeek) < 2.5) {
+        pendingSeek = null;
+        seekSettleTimer = clearTimer(seekSettleTimer);
+      }
+    }
     if (playerManager.getPlayerState() === cast.framework.messages.PlayerState.PLAYING) {
       hideLoader();
     }
