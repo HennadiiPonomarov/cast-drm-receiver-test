@@ -475,6 +475,18 @@ function formatTime(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function formatSeekTime(totalSeconds) {
+  const value = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const seconds = value % 60;
+  return [
+    hours,
+    minutes,
+    seconds,
+  ].map(part => String(part).padStart(2, '0')).join(':');
+}
+
 function secureMediaUrl(value) {
   if (!value || typeof value !== 'string') {
     return '';
@@ -1295,7 +1307,7 @@ function showSeekPreview(positionSeconds, autoHide = false, durationOverride = n
     : playerManager.getDurationSec();
   updatePauseProgress(position, duration);
   if (seekTimeElement) {
-    seekTimeElement.textContent = formatTime(position);
+    seekTimeElement.textContent = formatSeekTime(position);
   }
   renderThumbnailCue(thumbnailCueAt(position));
   if (seekPreviewElement) {
