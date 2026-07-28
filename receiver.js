@@ -55,6 +55,7 @@ let loaderDelayTimer = null;
 let transitionTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
+let playbackStopped = false;
 let currentPresentation = null;
 let thumbnailCues = [];
 let thumbnailRequestId = 0;
@@ -81,6 +82,7 @@ let nativeOverlayObserver = null;
 let controlsFocusArea = 'timeline';
 let controlSelection = 1;
 let suppressBackKeyUp = false;
+let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
 let subtitleStyleDirty = false;
@@ -1394,6 +1396,35 @@ function showIdle() {
   }
 }
 
+function enterStoppedState() {
+  playbackStopped = true;
+  currentPresentation = null;
+  hideLoader();
+  resetPresentationLayers();
+  showIdle();
+  sendReceiverMessage({
+    type: 'controls-status',
+    state: 'hidden',
+    reason: 'stop',
+  });
+}
+
+function stopPlaybackFromRemote() {
+  enterStoppedState();
+  try {
+    playerManager.stop();
+  } catch (error) {
+    console.warn('[SWEET Receiver] Cannot stop playback', error);
+  }
+  setTimeout(() => {
+    try {
+      context.stop();
+    } catch (error) {
+      console.warn('[SWEET Receiver] Cannot close receiver', error);
+    }
+  }, 120);
+}
+
 function hideIdle() {
   if (idleTimer !== null) {
     clearTimeout(idleTimer);
@@ -1618,8 +1649,9 @@ function handleReceiverKey(event) {
   const enter = key === 'Enter' || key === ' ' || code === 13 || code === 23;
   const back = isBackKeyEvent(event);
   const playPause = key === 'MediaPlayPause' || code === 179;
+  const stop = key === 'MediaStop' || code === 86 || code === 178 || code === 413;
 
-  if (!(left || right || up || down || enter || back || playPause)) {
+  if (!(left || right || up || down || enter || back || playPause || stop)) {
     return;
   }
 
@@ -1627,6 +1659,12 @@ function handleReceiverKey(event) {
     return;
   }
   consumeRemoteKey(event);
+
+  if (stop) {
+    suppressStopKeyUp = true;
+    stopPlaybackFromRemote();
+    return;
+  }
 
   if (isOptionsVisible()) {
     if (menuFocusArea === 'close') {
@@ -1710,6 +1748,13 @@ function handleReceiverKeyUp(event) {
     consumeRemoteKey(event);
     suppressBackKeyUp = false;
   }
+  const key = event.key || '';
+  const code = event.keyCode;
+  const stop = key === 'MediaStop' || code === 86 || code === 178 || code === 413;
+  if (suppressStopKeyUp && stop) {
+    consumeRemoteKey(event);
+    suppressStopKeyUp = false;
+  }
 }
 
 window.addEventListener('keydown', handleReceiverKey, true);
@@ -1726,6 +1771,7 @@ window.addEventListener('resize', () => {
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
+  playbackStopped = false;
   currentPresentation = presentationFor(media, customData);
   resetPresentationLayers();
   hideIdle();
@@ -1752,6 +1798,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
+  playbackStopped = false;
   hideIdle();
   hideError();
   hideEnd();
@@ -1874,7 +1921,11 @@ playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, e
     showEnd();
     return;
   }
-  scheduleIdle();
+  enterStoppedState();
+});
+
+playerManager.addEventListener(cast.framework.events.EventType.REQUEST_STOP, () => {
+  enterStoppedState();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event => {
@@ -1887,10 +1938,17 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
 
 playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
   hideLoader();
+  if (playbackStopped
+      || playerManager.getPlayerState() === cast.framework.messages.PlayerState.IDLE) {
+    hidePause();
+    showIdle();
+    return;
+  }
   showPause();
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
+  playbackStopped = false;
   hideLoader();
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);

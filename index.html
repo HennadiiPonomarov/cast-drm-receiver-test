@@ -569,9 +569,9 @@
         right: 0;
         z-index: 34;
         display: flex;
-        width: clamp(320px, 35vw, 510px);
+        width: clamp(300px, 33vw, 460px);
         height: 100%;
-        padding: 56px 30px 34px;
+        padding: 24px 26px;
         overflow: hidden;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(27, 29, 30, 0.98);
@@ -593,17 +593,20 @@
       }
 
       #receiver-options-header {
+        position: absolute;
+        top: 20px;
+        right: 22px;
+        left: 26px;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        min-height: 42px;
-        margin-bottom: 28px;
+        min-height: 38px;
       }
 
       #receiver-options-title {
         margin: 0;
         color: #f7fafb;
-        font: 650 23px/1.2 'Inter', Arial, sans-serif;
+        font: 650 18px/1.2 'Inter', Arial, sans-serif;
         letter-spacing: 0;
       }
 
@@ -611,14 +614,14 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        width: 42px;
-        height: 42px;
+        width: 38px;
+        height: 38px;
         border: 2px solid transparent;
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.28);
         box-sizing: border-box;
         color: #fff;
-        font: 300 31px/1 'Inter', Arial, sans-serif;
+        font: 300 27px/1 'Inter', Arial, sans-serif;
         transition: background 150ms ease, border-color 150ms ease,
           transform 150ms ease;
       }
@@ -631,11 +634,14 @@
 
       #receiver-options-list {
         display: flex;
+        width: 100%;
+        max-height: calc(100% - 92px);
         min-height: 0;
+        margin: auto 0;
         overflow-x: hidden;
         overflow-y: auto;
         flex-direction: column;
-        gap: 6px;
+        gap: 2px;
         scrollbar-width: none;
       }
 
@@ -646,13 +652,13 @@
       .receiver-option-row {
         display: flex;
         align-items: center;
-        min-height: 52px;
-        padding: 0 14px;
+        min-height: 42px;
+        padding: 0 12px;
         border: 2px solid transparent;
         border-radius: 4px;
         box-sizing: border-box;
         color: rgba(247, 250, 251, 0.84);
-        font: 560 16px/1.2 'Inter', Arial, sans-serif;
+        font: 560 15px/1.15 'Inter', Arial, sans-serif;
         letter-spacing: 0;
       }
 
@@ -666,8 +672,8 @@
       .receiver-option-check {
         position: relative;
         flex: 0 0 auto;
-        width: 22px;
-        height: 22px;
+        width: 19px;
+        height: 19px;
         margin-left: auto;
         border: 2px solid rgba(255, 255, 255, 0.22);
         border-radius: 50%;
@@ -691,10 +697,10 @@
       .receiver-option-row.active .receiver-option-check::after {
         content: '';
         position: absolute;
-        top: 5px;
-        left: 4px;
-        width: 9px;
-        height: 5px;
+        top: 4px;
+        left: 3px;
+        width: 8px;
+        height: 4px;
         border-bottom: 2px solid #071015;
         border-left: 2px solid #071015;
         transform: rotate(-45deg);
@@ -707,11 +713,11 @@
       }
 
       .receiver-option-row.group {
-        min-height: 38px;
-        margin-top: 10px;
+        min-height: 28px;
+        margin-top: 6px;
         padding: 0 4px;
         color: rgba(247, 250, 251, 0.52);
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 650;
         text-transform: uppercase;
       }
@@ -721,9 +727,9 @@
       }
 
       .receiver-option-swatch {
-        width: 22px;
-        height: 22px;
-        margin-right: 12px;
+        width: 19px;
+        height: 19px;
+        margin-right: 10px;
         border: 1px solid rgba(255, 255, 255, 0.38);
         border-radius: 50%;
         box-sizing: border-box;
@@ -876,7 +882,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-20"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-21"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
