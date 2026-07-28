@@ -500,28 +500,20 @@
         position: absolute;
         top: calc(100% + 8px);
         left: 50%;
-        max-width: 120px;
+        width: 140px;
         overflow: hidden;
         color: #f7fafb;
         font: 600 13px/1.2 'Inter', Arial, sans-serif;
         opacity: 0;
+        text-align: center;
         text-overflow: ellipsis;
         transform: translateX(-50%);
         transition: opacity 150ms ease;
-        white-space: nowrap;
+        white-space: pre-line;
       }
 
       .receiver-control.focused .receiver-control-caption {
         opacity: 1;
-      }
-
-      .receiver-skip-value {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        color: #f7fafb;
-        font: 750 11px/1 'Inter', Arial, sans-serif;
-        transform: translate(-50%, -50%);
       }
 
       .receiver-control img {
@@ -823,7 +815,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-16"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-17"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -836,7 +828,7 @@
         <p id="receiver-idle-label"></p>
       </div>
     </div>
-    <div id="receiver-loader" class="visible" aria-hidden="true">
+    <div id="receiver-loader" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-loader-activity">
         <div class="receiver-loader-spinner"></div>
@@ -873,14 +865,14 @@
           <div id="receiver-transport-controls" class="receiver-control-group">
             <div class="receiver-control" data-control="rewind">
               <img src="assets/player/rewind-left.svg" alt="">
-              <span class="receiver-skip-value">30</span>
+              <span id="receiver-rewind-label" class="receiver-control-caption"></span>
             </div>
             <div class="receiver-control primary" data-control="play">
               <img id="receiver-play-state-icon" src="assets/player/pause.svg" alt="">
             </div>
             <div class="receiver-control" data-control="forward">
               <img src="assets/player/rewind-right.svg" alt="">
-              <span class="receiver-skip-value">30</span>
+              <span id="receiver-forward-label" class="receiver-control-caption"></span>
             </div>
           </div>
           <div id="receiver-setting-controls" class="receiver-control-group">

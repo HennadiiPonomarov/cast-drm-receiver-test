@@ -3,6 +3,7 @@ const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
+const LOADER_DELAY_MS = 2000;
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -25,6 +26,8 @@ const pauseTimeElement = document.getElementById('receiver-pause-time');
 const pauseDurationElement = document.getElementById('receiver-pause-duration');
 const playStateIconElement = document.getElementById('receiver-play-state-icon');
 const controlElements = Array.from(document.querySelectorAll('[data-control]'));
+const rewindLabelElement = document.getElementById('receiver-rewind-label');
+const forwardLabelElement = document.getElementById('receiver-forward-label');
 const audioLabelElement = document.getElementById('receiver-audio-label');
 const subtitlesLabelElement = document.getElementById('receiver-subtitles-label');
 const qualityLabelElement = document.getElementById('receiver-quality-label');
@@ -44,6 +47,7 @@ const endArtworkElement = document.getElementById('receiver-end-artwork');
 const endTitleElement = document.getElementById('receiver-end-title');
 const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
+let loaderDelayTimer = null;
 let transitionTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
@@ -52,6 +56,7 @@ let thumbnailCues = [];
 let thumbnailRequestId = 0;
 let thumbnailSprite = null;
 let thumbnailRenderReported = false;
+let thumbnailRenderKey = '';
 let controlsTimer = null;
 let menuSection = 'audio';
 let menuSelection = 0;
@@ -63,6 +68,8 @@ let seekRepeatCount = 0;
 let seekCommitTimer = null;
 let seekSettleTimer = null;
 let seekResetTimer = null;
+let seekPreviewFrame = null;
+let subtitleStyleApplyTimer = null;
 let nativeOverlayObserver = null;
 let controlsFocusArea = 'timeline';
 let controlSelection = 1;
@@ -326,9 +333,38 @@ const translations = {
   },
 };
 
+const seekControlLabels = {
+  en: ['30 sec.\nbackward', '30 sec.\nforward'],
+  uk: ['30 сек.\nназад', '30 сек.\nвперед'],
+  ru: ['30 сек.\nназад', '30 сек.\nвперёд'],
+  sk: ['30 s.\ndozadu', '30 s.\ndopredu'],
+  cs: ['30 s.\ndozadu', '30 s.\ndopředu'],
+  hu: ['30 mp.\nvissza', '30 mp.\nelőre'],
+  bg: ['30 сек.\nназад', '30 сек.\nнапред'],
+  pl: ['30 sek.\nwstecz', '30 sek.\nnaprzód'],
+  ro: ['30 sec.\nînapoi', '30 sec.\nînainte'],
+  az: ['30 san.\ngeriyə', '30 san.\nirəli'],
+  sq: ['30 sek.\npas', '30 sek.\npara'],
+  lv: ['30 sek.\natpakaļ', '30 sek.\nuz priekšu'],
+  et: ['30 sek.\ntagasi', '30 sek.\nedasi'],
+  el: ['30 δευτ.\nπίσω', '30 δευτ.\nμπροστά'],
+  lt: ['30 sek.\natgal', '30 sek.\nį priekį'],
+  sr: ['30 sek.\nnazad', '30 sek.\nnapred'],
+  mk: ['30 сек.\nнаназад', '30 сек.\nнапред'],
+  bs: ['30 sek.\nnazad', '30 sek.\nnaprijed'],
+  sl: ['30 sek.\nnazaj', '30 sek.\nnaprej'],
+  hr: ['30 sek.\nnatrag', '30 sek.\nnaprijed'],
+};
+
 function translate(key) {
   const language = receiverLocale.split('-')[0];
   return (translations[language] || translations.en)[key] || translations.en[key];
+}
+
+function seekControlLabel(direction) {
+  const language = receiverLocale.split('-')[0];
+  const labels = seekControlLabels[language] || seekControlLabels.en;
+  return labels[direction < 0 ? 0 : 1];
 }
 
 document.documentElement.lang = receiverLocale;
@@ -557,6 +593,12 @@ function updatePauseProgress(positionOverride = null) {
 }
 
 function updateControlLabels() {
+  if (rewindLabelElement) {
+    rewindLabelElement.textContent = seekControlLabel(-1);
+  }
+  if (forwardLabelElement) {
+    forwardLabelElement.textContent = seekControlLabel(1);
+  }
   if (audioLabelElement) {
     audioLabelElement.textContent = translate('audio');
   }
@@ -624,6 +666,11 @@ function syncSubtitleStyleState() {
 }
 
 function applySubtitleStyle(markDirty = true) {
+  if (markDirty) {
+    // Keep the choice even when no text track is active yet. Some CAF
+    // receivers reject styling until a subtitle track has been enabled.
+    subtitleStyleDirty = true;
+  }
   try {
     const manager = playerManager.getTextTracksManager();
     const current = manager.getTextTracksStyle();
@@ -634,12 +681,26 @@ function applySubtitleStyle(markDirty = true) {
     style.fontScale = subtitleFontScale;
     style.foregroundColor = subtitleForegroundColor;
     manager.setTextTrackStyle(style);
-    if (markDirty) {
-      subtitleStyleDirty = true;
-    }
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
+}
+
+function setActiveSubtitleIds(ids) {
+  const activeIds = Array.isArray(ids) ? ids : [];
+  playerManager.getTextTracksManager().setActiveByIds(activeIds);
+  subtitleStyleApplyTimer = clearTimer(subtitleStyleApplyTimer);
+  if (activeIds.length === 0 || !subtitleStyleDirty) {
+    return;
+  }
+  // CAF may restore the media's default TextTrackStyle while activating a
+  // previously disabled track. Reapply the user's saved style after that
+  // activation has reached the text renderer.
+  applySubtitleStyle(false);
+  subtitleStyleApplyTimer = setTimeout(() => {
+    subtitleStyleApplyTimer = null;
+    applySubtitleStyle(false);
+  }, 120);
 }
 
 function optionItems(section = menuSection) {
@@ -812,7 +873,7 @@ function applySelectedOption() {
     playerManager.getAudioTracksManager().setActiveById(item.id);
     setTimeout(notifyTrackSelection, 0);
   } else if (item.kind === 'subtitle-track') {
-    playerManager.getTextTracksManager().setActiveByIds(item.id < 0 ? [] : [item.id]);
+    setActiveSubtitleIds(item.id < 0 ? [] : [item.id]);
     setTimeout(notifyTrackSelection, 0);
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
@@ -930,6 +991,7 @@ async function loadThumbnailCues(playlistUrl, sprite = null) {
   const requestId = ++thumbnailRequestId;
   thumbnailCues = [];
   thumbnailRenderReported = false;
+  thumbnailRenderKey = '';
   thumbnailSprite = sprite?.imageUrl && sprite.interval > 0 && sprite.cols > 0 && sprite.rows > 0
     ? sprite
     : null;
@@ -996,50 +1058,59 @@ function thumbnailCueAt(positionSeconds) {
   };
 }
 
+function applyThumbnailCrop(cue) {
+  let crop = cue.crop;
+  if (!crop && Number.isFinite(cue.spriteFrame) && thumbnailSprite) {
+    const frameWidth = seekImageElement.naturalWidth / thumbnailSprite.cols;
+    const frameHeight = seekImageElement.naturalHeight / thumbnailSprite.rows;
+    const column = cue.spriteFrame % thumbnailSprite.cols;
+    const row = Math.floor(cue.spriteFrame / thumbnailSprite.cols);
+    crop = [column * frameWidth, row * frameHeight, frameWidth, frameHeight];
+  }
+  crop = crop || [0, 0, seekImageElement.naturalWidth, seekImageElement.naturalHeight];
+  const [x, y, width, height] = crop;
+  if (!width || !height) {
+    seekImageElement.style.display = 'none';
+    return;
+  }
+  const scale = Math.min(SEEK_PREVIEW_WIDTH / width, SEEK_PREVIEW_HEIGHT / height);
+  seekFrameElement.style.width = `${Math.round(width * scale)}px`;
+  seekFrameElement.style.height = `${Math.round(height * scale)}px`;
+  seekImageElement.style.width = `${Math.round(seekImageElement.naturalWidth * scale)}px`;
+  seekImageElement.style.height = `${Math.round(seekImageElement.naturalHeight * scale)}px`;
+  seekImageElement.style.left = `${Math.round(-x * scale)}px`;
+  seekImageElement.style.top = `${Math.round(-y * scale)}px`;
+  seekImageElement.style.display = 'block';
+  if (!thumbnailRenderReported) {
+    thumbnailRenderReported = true;
+    sendReceiverMessage({
+      type: 'thumbnail-status',
+      state: 'rendered',
+      playlist: thumbnailCues.length > 0,
+      sprite: Boolean(thumbnailSprite),
+      cueCount: thumbnailCues.length,
+    });
+  }
+}
+
 function renderThumbnailCue(cue) {
   if (!seekImageElement || !seekFrameElement) {
     return;
   }
   if (!cue?.imageUrl) {
+    thumbnailRenderKey = '';
     seekFrameElement.hidden = true;
     seekImageElement.style.display = 'none';
     return;
   }
+  const cropKey = Array.isArray(cue.crop) ? cue.crop.join(',') : cue.spriteFrame;
+  const renderKey = `${cue.imageUrl}|${cropKey ?? 'full'}`;
+  if (thumbnailRenderKey === renderKey && seekImageElement.style.display !== 'none') {
+    return;
+  }
+  thumbnailRenderKey = renderKey;
   seekFrameElement.hidden = false;
-  seekImageElement.onload = () => {
-    let crop = cue.crop;
-    if (!crop && Number.isFinite(cue.spriteFrame) && thumbnailSprite) {
-      const frameWidth = seekImageElement.naturalWidth / thumbnailSprite.cols;
-      const frameHeight = seekImageElement.naturalHeight / thumbnailSprite.rows;
-      const column = cue.spriteFrame % thumbnailSprite.cols;
-      const row = Math.floor(cue.spriteFrame / thumbnailSprite.cols);
-      crop = [column * frameWidth, row * frameHeight, frameWidth, frameHeight];
-    }
-    crop = crop || [0, 0, seekImageElement.naturalWidth, seekImageElement.naturalHeight];
-    const [x, y, width, height] = crop;
-    if (!width || !height) {
-      seekImageElement.style.display = 'none';
-      return;
-    }
-    const scale = Math.min(SEEK_PREVIEW_WIDTH / width, SEEK_PREVIEW_HEIGHT / height);
-    seekFrameElement.style.width = `${Math.round(width * scale)}px`;
-    seekFrameElement.style.height = `${Math.round(height * scale)}px`;
-    seekImageElement.style.width = `${Math.round(seekImageElement.naturalWidth * scale)}px`;
-    seekImageElement.style.height = `${Math.round(seekImageElement.naturalHeight * scale)}px`;
-    seekImageElement.style.left = `${Math.round(-x * scale)}px`;
-    seekImageElement.style.top = `${Math.round(-y * scale)}px`;
-    seekImageElement.style.display = 'block';
-    if (!thumbnailRenderReported) {
-      thumbnailRenderReported = true;
-      sendReceiverMessage({
-        type: 'thumbnail-status',
-        state: 'rendered',
-        playlist: thumbnailCues.length > 0,
-        sprite: Boolean(thumbnailSprite),
-        cueCount: thumbnailCues.length,
-      });
-    }
-  };
+  seekImageElement.onload = () => applyThumbnailCrop(cue);
   seekImageElement.onerror = () => {
     seekImageElement.style.display = 'none';
     if (!thumbnailRenderReported) {
@@ -1053,6 +1124,12 @@ function renderThumbnailCue(cue) {
       });
     }
   };
+  if (seekImageElement.dataset.sourceUrl === cue.imageUrl
+      && seekImageElement.complete && seekImageElement.naturalWidth > 0) {
+    applyThumbnailCrop(cue);
+    return;
+  }
+  seekImageElement.dataset.sourceUrl = cue.imageUrl;
   seekImageElement.src = cue.imageUrl;
 }
 
@@ -1092,6 +1169,10 @@ function showSeekPreview(positionSeconds, autoHide = false) {
 
 function hideSeekPreview() {
   seekPreviewTimer = clearTimer(seekPreviewTimer);
+  if (seekPreviewFrame !== null) {
+    cancelAnimationFrame(seekPreviewFrame);
+    seekPreviewFrame = null;
+  }
   previewSeekPosition = null;
   if (seekPreviewElement) {
     seekPreviewElement.classList.remove('visible');
@@ -1104,9 +1185,14 @@ function hideSeekPreview() {
 function resetPresentationLayers() {
   pendingSeek = null;
   previewSeekPosition = null;
+  if (seekPreviewFrame !== null) {
+    cancelAnimationFrame(seekPreviewFrame);
+    seekPreviewFrame = null;
+  }
   seekCommitTimer = clearTimer(seekCommitTimer);
   seekSettleTimer = clearTimer(seekSettleTimer);
   seekResetTimer = clearTimer(seekResetTimer);
+  subtitleStyleApplyTimer = clearTimer(subtitleStyleApplyTimer);
   seekRepeatCount = 0;
   pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
@@ -1120,12 +1206,18 @@ function showLoader(label = translate('loading')) {
   if (loaderLabelElement) {
     loaderLabelElement.textContent = label;
   }
-  if (loaderElement) {
-    loaderElement.classList.add('visible');
+  if (!loaderElement || loaderElement.classList.contains('visible')
+      || loaderDelayTimer !== null) {
+    return;
   }
+  loaderDelayTimer = setTimeout(() => {
+    loaderDelayTimer = null;
+    loaderElement.classList.add('visible');
+  }, LOADER_DELAY_MS);
 }
 
 function hideLoader() {
+  loaderDelayTimer = clearTimer(loaderDelayTimer);
   if (loaderElement) {
     loaderElement.classList.remove('visible');
   }
@@ -1212,9 +1304,9 @@ function restoreRequestedTrackSelection() {
     }
     if (currentPresentation.selectedSubtitleId >= 0
         && textManager.getTrackById(currentPresentation.selectedSubtitleId)) {
-      textManager.setActiveByIds([currentPresentation.selectedSubtitleId]);
+      setActiveSubtitleIds([currentPresentation.selectedSubtitleId]);
     } else {
-      textManager.setActiveByIds([]);
+      setActiveSubtitleIds([]);
     }
   } catch (error) {
     console.warn('[SWEET Receiver] Requested tracks are not ready', error);
@@ -1225,11 +1317,10 @@ function applyTrackSelection(message) {
   const audioId = Number(message.audioId);
   const subtitleId = Number(message.subtitleId);
   const audioManager = playerManager.getAudioTracksManager();
-  const textManager = playerManager.getTextTracksManager();
   if (Number.isFinite(audioId) && audioId >= 0) {
     audioManager.setActiveById(audioId);
   }
-  textManager.setActiveByIds(
+  setActiveSubtitleIds(
     Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
   notifyTrackSelection();
 }
@@ -1300,8 +1391,13 @@ function previewRemoteSeek(direction) {
   }
   const current = pendingSeek === null ? playerManager.getCurrentTimeSec() : pendingSeek;
   pendingSeek = Math.max(0, Math.min(duration, current + (direction * seekStepSeconds())));
-  showPause();
-  showSeekPreview(pendingSeek);
+  if (seekPreviewFrame === null) {
+    seekPreviewFrame = requestAnimationFrame(() => {
+      seekPreviewFrame = null;
+      showPause();
+      showSeekPreview(pendingSeek);
+    });
+  }
   seekCommitTimer = clearTimer(seekCommitTimer);
   seekCommitTimer = setTimeout(() => {
     const target = pendingSeek;
@@ -1319,7 +1415,7 @@ function previewRemoteSeek(direction) {
         updatePauseProgress();
       }
     }, 2500);
-  }, 650);
+  }, 450);
 }
 
 function togglePlayback() {
