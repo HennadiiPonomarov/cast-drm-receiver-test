@@ -1,6 +1,8 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
+const SEEK_PREVIEW_WIDTH = 208;
+const SEEK_PREVIEW_HEIGHT = 117;
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -794,7 +796,7 @@ function renderThumbnailCue(cue) {
       seekImageElement.style.display = 'none';
       return;
     }
-    const scale = Math.min(240 / width, 135 / height);
+    const scale = Math.min(SEEK_PREVIEW_WIDTH / width, SEEK_PREVIEW_HEIGHT / height);
     seekFrameElement.style.width = `${Math.round(width * scale)}px`;
     seekFrameElement.style.height = `${Math.round(height * scale)}px`;
     seekImageElement.style.width = `${Math.round(seekImageElement.naturalWidth * scale)}px`;
