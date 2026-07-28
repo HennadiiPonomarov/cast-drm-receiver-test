@@ -20,6 +20,7 @@ const pauseElement = document.getElementById('receiver-pause');
 const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
 const pauseMetaElement = document.getElementById('receiver-pause-meta');
+const pauseArtworkElement = document.getElementById('receiver-pause-artwork');
 const pauseProgressElement = document.getElementById('receiver-pause-progress-fill');
 const pauseProgressTrackElement = document.getElementById('receiver-pause-progress');
 const pauseTimelineElement = document.getElementById('receiver-pause-timeline');
@@ -63,6 +64,7 @@ let thumbnailRenderKey = '';
 let controlsTimer = null;
 let menuSection = 'audio';
 let menuSelection = 0;
+let menuFocusArea = 'list';
 let audioTrackCatalog = [];
 let subtitleTrackCatalog = [];
 let pendingSeek = null;
@@ -72,6 +74,7 @@ let seekCommitTimer = null;
 let seekSettleTimer = null;
 let seekResetTimer = null;
 let seekPreviewFrame = null;
+let timelineBoundsCache = null;
 let subtitleStyleApplyTimer = null;
 let subtitleStyleApplyToken = 0;
 let nativeOverlayObserver = null;
@@ -592,6 +595,13 @@ function setControlsFocus(area, selection = controlSelection) {
   renderControlsFocus();
 }
 
+function cacheTimelineBounds() {
+  const bounds = pauseProgressTrackElement?.getBoundingClientRect();
+  timelineBoundsCache = bounds?.width > 0
+    ? {left: bounds.left, width: bounds.width}
+    : null;
+}
+
 function scheduleControlsHide(delay = 2800) {
   controlsTimer = clearTimer(controlsTimer);
   controlsTimer = setTimeout(() => {
@@ -613,8 +623,12 @@ function scheduleControlsHide(delay = 2800) {
   }, delay);
 }
 
-function updatePauseProgress(positionOverride = null) {
-  const actualPosition = playerManager.getCurrentTimeSec();
+function updatePauseProgress(positionOverride = null, durationOverride = null) {
+  const hasPositionOverride = positionOverride !== null
+    && Number.isFinite(Number(positionOverride));
+  const actualPosition = hasPositionOverride
+    ? Number(positionOverride)
+    : playerManager.getCurrentTimeSec();
   const isScrubbing = positionOverride !== null
     || pendingSeek !== null
     || previewSeekPosition !== null;
@@ -625,7 +639,9 @@ function updatePauseProgress(positionOverride = null) {
       : (previewSeekPosition !== null && Number.isFinite(Number(previewSeekPosition))
         ? Number(previewSeekPosition)
         : actualPosition));
-  const duration = playerManager.getDurationSec();
+  const duration = durationOverride !== null && Number.isFinite(Number(durationOverride))
+    ? Number(durationOverride)
+    : playerManager.getDurationSec();
   const boundedDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
   const percentage = boundedDuration > 0
     ? Math.max(0, Math.min(100, (position / boundedDuration) * 100))
@@ -673,6 +689,10 @@ function showPause(autoHide = false) {
   if (!currentPresentation?.title || playbackHasError) {
     return;
   }
+  if (isOptionsVisible()) {
+    setLayerVisible(pauseElement, false);
+    return;
+  }
   const wasVisible = controlsAreVisible();
   hideTransition();
   if (pauseLabelElement) {
@@ -684,6 +704,15 @@ function showPause(autoHide = false) {
   if (pauseMetaElement) {
     pauseMetaElement.textContent = currentPresentation.subtitle || presentationBadge();
   }
+  if (pauseArtworkElement) {
+    pauseArtworkElement.hidden = !currentPresentation.artworkUrl;
+    pauseArtworkElement.classList.toggle(
+      'channel',
+      Boolean(currentPresentation.isLive || currentPresentation.isRecording));
+    if (currentPresentation.artworkUrl) {
+      pauseArtworkElement.src = currentPresentation.artworkUrl;
+    }
+  }
   updatePauseProgress();
   updateControlLabels();
   if (playStateIconElement) {
@@ -692,6 +721,9 @@ function showPause(autoHide = false) {
       : 'assets/player/pause.svg';
   }
   setLayerVisible(pauseElement, true);
+  if (!timelineBoundsCache) {
+    requestAnimationFrame(cacheTimelineBounds);
+  }
   if (!wasVisible) {
     setControlsFocus('timeline');
   } else {
@@ -883,6 +915,8 @@ function renderOptions() {
   if (optionsTitleElement) {
     optionsTitleElement.textContent = translate(menuSection);
   }
+  document.getElementById('receiver-options-close')
+    ?.classList.toggle('focused', menuFocusArea === 'close');
   if (optionsListElement) {
     optionsListElement.textContent = '';
     items.forEach((item, index) => {
@@ -898,7 +932,7 @@ function renderOptions() {
       }
       row.className = [
         'receiver-option-row',
-        index === menuSelection ? 'focused' : '',
+        menuFocusArea === 'list' && index === menuSelection ? 'focused' : '',
         item.selected ? 'active' : '',
       ].filter(Boolean).join(' ');
       if (item.swatch) {
@@ -912,7 +946,6 @@ function renderOptions() {
       label.textContent = item.label;
       const check = document.createElement('span');
       check.className = 'receiver-option-check';
-      check.textContent = '\u2713';
       row.append(label, check);
       optionsListElement.appendChild(row);
     });
@@ -925,6 +958,7 @@ function renderOptions() {
 
 function showOptions(section = menuSection) {
   menuSection = section;
+  menuFocusArea = 'list';
   updateControlLabels();
   if (section === 'subtitles') {
     syncSubtitleStyleState();
@@ -933,6 +967,9 @@ function showOptions(section = menuSection) {
   const selectedIndex = items.findIndex(item => item.selected);
   menuSelection = nearestSelectableIndex(items, selectedIndex >= 0 ? selectedIndex : 0);
   renderOptions();
+  controlsTimer = clearTimer(controlsTimer);
+  hideSeekPreview();
+  setLayerVisible(pauseElement, false);
   optionsElement?.classList.add('visible');
   optionsElement?.setAttribute('aria-hidden', 'false');
 }
@@ -940,6 +977,7 @@ function showOptions(section = menuSection) {
 function hideOptions() {
   optionsElement?.classList.remove('visible');
   optionsElement?.setAttribute('aria-hidden', 'true');
+  menuFocusArea = 'list';
 }
 
 function activeTrackSelection() {
@@ -972,13 +1010,9 @@ function applySelectedOption() {
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
     applySubtitleStyle();
-    renderOptions();
-    return;
   } else if (item.kind === 'subtitle-color') {
     subtitleForegroundColor = item.value;
     applySubtitleStyle();
-    renderOptions();
-    return;
   } else if (item.kind === 'quality') {
     const tracks = activeTrackSelection();
     sendReceiverMessage({
@@ -989,9 +1023,17 @@ function applySelectedOption() {
       subtitleId: tracks.subtitleId,
     });
     currentPresentation.maxHeight = item.id;
+    updateControlLabels();
   }
-  hideOptions();
-  showPause(true);
+  menuFocusArea = 'close';
+  renderOptions();
+  for (const delay of [0, 100, 300]) {
+    setTimeout(() => {
+      if (isOptionsVisible() && menuFocusArea === 'close') {
+        renderOptions();
+      }
+    }, delay);
+  }
 }
 
 function hideError() {
@@ -1135,9 +1177,24 @@ async function loadThumbnailCues(playlistUrl, sprite = null) {
 }
 
 function thumbnailCueAt(positionSeconds) {
-  const cue = thumbnailCues.find(item => positionSeconds >= item.start && positionSeconds < item.end)
-    || thumbnailCues.find(cue => positionSeconds < cue.end)
-    || null;
+  let low = 0;
+  let high = thumbnailCues.length - 1;
+  let cue = null;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    const candidate = thumbnailCues[middle];
+    if (positionSeconds < candidate.start) {
+      high = middle - 1;
+    } else if (positionSeconds >= candidate.end) {
+      low = middle + 1;
+    } else {
+      cue = candidate;
+      break;
+    }
+  }
+  if (!cue && low < thumbnailCues.length && positionSeconds < thumbnailCues[low].end) {
+    cue = thumbnailCues[low];
+  }
   if (cue || !thumbnailSprite) {
     return cue;
   }
@@ -1227,20 +1284,22 @@ function renderThumbnailCue(cue) {
   seekImageElement.src = cue.imageUrl;
 }
 
-function showSeekPreview(positionSeconds, autoHide = false) {
+function showSeekPreview(positionSeconds, autoHide = false, durationOverride = null) {
   const position = Math.max(0, Number(positionSeconds) || 0);
   previewSeekPosition = position;
   seekPreviewTimer = clearTimer(seekPreviewTimer);
-  updatePauseProgress(position);
+  const duration = durationOverride !== null && Number.isFinite(Number(durationOverride))
+    ? Number(durationOverride)
+    : playerManager.getDurationSec();
+  updatePauseProgress(position, duration);
   if (seekTimeElement) {
     seekTimeElement.textContent = formatTime(position);
   }
   renderThumbnailCue(thumbnailCueAt(position));
   if (seekPreviewElement) {
-    const duration = playerManager.getDurationSec();
     if (Number.isFinite(duration) && duration > 0) {
       const ratio = Math.max(0, Math.min(1, position / duration));
-      const timelineBounds = pauseProgressTrackElement?.getBoundingClientRect();
+      const timelineBounds = timelineBoundsCache;
       if (timelineBounds?.width > 0) {
         const previewHalfWidth = (SEEK_PREVIEW_WIDTH / 2) + 12;
         const timelineX = timelineBounds.left + (timelineBounds.width * ratio);
@@ -1288,6 +1347,7 @@ function resetPresentationLayers() {
   seekResetTimer = clearTimer(seekResetTimer);
   cancelSubtitleStyleRestore();
   seekRepeatCount = 0;
+  timelineBoundsCache = null;
   pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
   hideEnd();
@@ -1429,6 +1489,7 @@ function moveMenuSelection(direction) {
     return;
   }
   let next = menuSelection;
+  menuFocusArea = 'list';
   for (let attempts = 0; attempts < items.length; attempts += 1) {
     next = (next + direction + items.length) % items.length;
     if (isSelectableOption(items[next])) {
@@ -1445,7 +1506,6 @@ function focusedControlName() {
 
 function showOptionsForControl(control) {
   if (control === 'audio' || control === 'subtitles' || control === 'quality') {
-    showPause();
     showOptions(control);
     return true;
   }
@@ -1485,11 +1545,13 @@ function previewRemoteSeek(direction) {
   }
   const current = pendingSeek === null ? playerManager.getCurrentTimeSec() : pendingSeek;
   pendingSeek = Math.max(0, Math.min(duration, current + (direction * seekStepSeconds())));
+  if (!controlsAreVisible()) {
+    showPause();
+  }
   if (seekPreviewFrame === null) {
     seekPreviewFrame = requestAnimationFrame(() => {
       seekPreviewFrame = null;
-      showPause();
-      showSeekPreview(pendingSeek);
+      showSeekPreview(pendingSeek, false, duration);
     });
   }
   seekCommitTimer = clearTimer(seekCommitTimer);
@@ -1509,7 +1571,7 @@ function previewRemoteSeek(direction) {
         updatePauseProgress();
       }
     }, 2500);
-  }, 450);
+  }, 360);
 }
 
 function togglePlayback() {
@@ -1567,8 +1629,24 @@ function handleReceiverKey(event) {
   consumeRemoteKey(event);
 
   if (isOptionsVisible()) {
-    if (up || down) {
+    if (menuFocusArea === 'close') {
+      if (enter || back || left) {
+        suppressBackKeyUp = back;
+        hideOptions();
+        showPause(true);
+      } else if (up || down) {
+        menuFocusArea = 'list';
+        if (up) {
+          const items = optionItems();
+          menuSelection = nearestSelectableIndex(items, items.length - 1, -1);
+        }
+        renderOptions();
+      }
+    } else if (up || down) {
       moveMenuSelection(up ? -1 : 1);
+    } else if (right) {
+      menuFocusArea = 'close';
+      renderOptions();
     } else if (enter) {
       applySelectedOption();
     } else if (back || left) {
@@ -1636,6 +1714,12 @@ function handleReceiverKeyUp(event) {
 
 window.addEventListener('keydown', handleReceiverKey, true);
 window.addEventListener('keyup', handleReceiverKeyUp, true);
+window.addEventListener('resize', () => {
+  timelineBoundsCache = null;
+  if (controlsAreVisible()) {
+    requestAnimationFrame(cacheTimelineBounds);
+  }
+});
 
 // The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
 // explicit for receivers that do not infer it reliably from the playlist.
@@ -1808,7 +1892,9 @@ playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
   hideLoader();
-  if (pauseElement?.classList.contains('visible')) {
+  if (isOptionsVisible()) {
+    setLayerVisible(pauseElement, false);
+  } else if (pauseElement?.classList.contains('visible')) {
     showPause(true);
   } else {
     hidePause();

@@ -374,6 +374,27 @@
         text-align: center;
       }
 
+      #receiver-pause-artwork {
+        position: absolute;
+        top: 4.5vh;
+        right: 5vw;
+        width: 76px;
+        height: 108px;
+        border-radius: 4px;
+        object-fit: cover;
+        filter: drop-shadow(0 5px 18px rgba(0, 0, 0, 0.48));
+      }
+
+      #receiver-pause-artwork.channel {
+        width: 82px;
+        height: 82px;
+        object-fit: contain;
+      }
+
+      #receiver-pause-artwork[hidden] {
+        display: none;
+      }
+
       #receiver-pause-label {
         margin-top: 6px;
         color: rgba(247, 250, 251, 0.68);
@@ -592,10 +613,20 @@
         justify-content: center;
         width: 42px;
         height: 42px;
+        border: 2px solid transparent;
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.28);
+        box-sizing: border-box;
         color: #fff;
         font: 300 31px/1 'Inter', Arial, sans-serif;
+        transition: background 150ms ease, border-color 150ms ease,
+          transform 150ms ease;
+      }
+
+      #receiver-options-close.focused {
+        border-color: #20c5c9;
+        background: rgba(32, 197, 201, 0.22);
+        transform: scale(1.08);
       }
 
       #receiver-options-list {
@@ -633,12 +664,17 @@
       }
 
       .receiver-option-check {
-        width: 24px;
+        position: relative;
+        flex: 0 0 auto;
+        width: 22px;
+        height: 22px;
         margin-left: auto;
-        color: #20c5c9;
-        font: 700 20px/1 'Inter', Arial, sans-serif;
-        text-align: right;
+        border: 2px solid rgba(255, 255, 255, 0.22);
+        border-radius: 50%;
+        box-sizing: border-box;
         opacity: 0;
+        transform: scale(0.82);
+        transition: opacity 140ms ease, transform 140ms ease;
       }
 
       .receiver-option-row.active {
@@ -646,7 +682,22 @@
       }
 
       .receiver-option-row.active .receiver-option-check {
+        border-color: #20c5c9;
+        background: #20c5c9;
         opacity: 1;
+        transform: scale(1);
+      }
+
+      .receiver-option-row.active .receiver-option-check::after {
+        content: '';
+        position: absolute;
+        top: 5px;
+        left: 4px;
+        width: 9px;
+        height: 5px;
+        border-bottom: 2px solid #071015;
+        border-left: 2px solid #071015;
+        transform: rotate(-45deg);
       }
 
       .receiver-option-row.focused {
@@ -681,16 +732,18 @@
       #receiver-seek-preview {
         position: fixed;
         left: 50%;
-        bottom: max(145px, 19vh);
+        bottom: max(172px, 22vh);
         z-index: 32;
         display: flex;
         flex-direction: column;
         align-items: center;
+        contain: layout paint style;
         opacity: 0;
         visibility: hidden;
         transform: translate(-50%, 10px);
         transition: opacity 180ms ease, transform 180ms ease,
           visibility 0s linear 180ms;
+        will-change: left, opacity, transform;
         pointer-events: none;
       }
 
@@ -823,7 +876,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-19"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-20"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -861,6 +914,7 @@
         <div id="receiver-pause-label"></div>
         <div id="receiver-pause-meta"></div>
       </div>
+      <img id="receiver-pause-artwork" alt="">
       <div id="receiver-pause-content">
         <div id="receiver-pause-timeline">
           <div id="receiver-pause-time"></div>
