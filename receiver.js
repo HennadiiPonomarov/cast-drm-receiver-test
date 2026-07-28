@@ -31,6 +31,10 @@ const qualityLabelElement = document.getElementById('receiver-quality-label');
 const optionsElement = document.getElementById('receiver-options');
 const optionsTitleElement = document.getElementById('receiver-options-title');
 const optionsListElement = document.getElementById('receiver-options-list');
+const optionsTabElements = Array.from(document.querySelectorAll('.receiver-options-tab'));
+const optionsAudioTabElement = document.getElementById('receiver-options-audio-tab');
+const optionsSubtitlesTabElement = document.getElementById('receiver-options-subtitles-tab');
+const optionsQualityTabElement = document.getElementById('receiver-options-quality-tab');
 const seekPreviewElement = document.getElementById('receiver-seek-preview');
 const seekFrameElement = document.getElementById('receiver-seek-frame');
 const seekImageElement = document.getElementById('receiver-seek-image');
@@ -387,6 +391,12 @@ function presentationFor(media, customData = {}) {
       && Number.isFinite(Number(customData.maxHeight))
       ? Number(customData.maxHeight)
       : -1,
+    selectedAudioId: Number.isFinite(Number(customData.selectedAudioId))
+      ? Number(customData.selectedAudioId)
+      : -1,
+    selectedSubtitleId: Number.isFinite(Number(customData.selectedSubtitleId))
+      ? Number(customData.selectedSubtitleId)
+      : -1,
   };
 }
 
@@ -505,6 +515,15 @@ function updateControlLabels() {
   if (qualityLabelElement) {
     qualityLabelElement.textContent = translate('quality');
   }
+  if (optionsAudioTabElement) {
+    optionsAudioTabElement.textContent = translate('audio');
+  }
+  if (optionsSubtitlesTabElement) {
+    optionsSubtitlesTabElement.textContent = translate('subtitles');
+  }
+  if (optionsQualityTabElement) {
+    optionsQualityTabElement.textContent = translate('quality');
+  }
 }
 
 function showPause(autoHide = false) {
@@ -568,28 +587,64 @@ function renderOptions() {
   if (optionsTitleElement) {
     optionsTitleElement.textContent = translate(menuSection);
   }
+  optionsTabElements.forEach(tab => {
+    tab.classList.toggle('active', tab.dataset.section === menuSection);
+  });
   if (optionsListElement) {
     optionsListElement.textContent = '';
     items.forEach((item, index) => {
       const row = document.createElement('div');
-      row.className = `receiver-option-row${index === menuSelection ? ' selected' : ''}`;
-      row.textContent = item.label;
+      row.className = [
+        'receiver-option-row',
+        index === menuSelection ? 'focused' : '',
+        item.selected ? 'active' : '',
+      ].filter(Boolean).join(' ');
+      const label = document.createElement('span');
+      label.className = 'receiver-option-label';
+      label.textContent = item.label;
+      const check = document.createElement('span');
+      check.className = 'receiver-option-check';
+      check.textContent = '\u2713';
+      row.append(label, check);
       optionsListElement.appendChild(row);
+    });
+    requestAnimationFrame(() => {
+      optionsListElement.querySelector('.receiver-option-row.focused')
+        ?.scrollIntoView({block: 'nearest'});
     });
   }
 }
 
 function showOptions(section = menuSection) {
   menuSection = section;
+  updateControlLabels();
   const items = optionItems();
   const selectedIndex = items.findIndex(item => item.selected);
   menuSelection = selectedIndex >= 0 ? selectedIndex : 0;
   renderOptions();
   optionsElement?.classList.add('visible');
+  optionsElement?.setAttribute('aria-hidden', 'false');
 }
 
 function hideOptions() {
   optionsElement?.classList.remove('visible');
+  optionsElement?.setAttribute('aria-hidden', 'true');
+}
+
+function activeTrackSelection() {
+  const audioId = playerManager.getAudioTracksManager().getActiveId();
+  const subtitleIds = playerManager.getTextTracksManager().getActiveIds();
+  return {
+    audioId: Number.isFinite(Number(audioId)) ? Number(audioId) : -1,
+    subtitleId: subtitleIds.length > 0 ? Number(subtitleIds[0]) : -1,
+  };
+}
+
+function notifyTrackSelection() {
+  sendReceiverMessage({
+    type: 'track-selection',
+    ...activeTrackSelection(),
+  });
 }
 
 function applySelectedOption() {
@@ -599,13 +654,18 @@ function applySelectedOption() {
   }
   if (menuSection === 'audio') {
     playerManager.getAudioTracksManager().setActiveById(item.id);
+    setTimeout(notifyTrackSelection, 0);
   } else if (menuSection === 'subtitles') {
     playerManager.getTextTracksManager().setActiveByIds(item.id < 0 ? [] : [item.id]);
+    setTimeout(notifyTrackSelection, 0);
   } else {
+    const tracks = activeTrackSelection();
     sendReceiverMessage({
       type: 'quality-request',
       maxHeight: item.id,
       positionMs: Math.round(playerManager.getCurrentTimeSec() * 1000),
+      audioId: tracks.audioId,
+      subtitleId: tracks.subtitleId,
     });
     currentPresentation.maxHeight = item.id;
   }
@@ -941,13 +1001,38 @@ function sendTrackCatalog() {
     subtitleTrackCatalog = playerManager.getTextTracksManager().getTracks();
     const audioTracks = audioTrackCatalog.map(toTrackPayload);
     const subtitleTracks = subtitleTrackCatalog.map(toTrackPayload);
+    const activeTracks = activeTrackSelection();
     sendReceiverMessage({
       type: 'tracks',
       audio: audioTracks,
       subtitles: subtitleTracks,
+      audioId: activeTracks.audioId,
+      subtitleId: activeTracks.subtitleId,
     });
   } catch (error) {
     console.warn('[SWEET Receiver] Track catalog is not ready', error);
+  }
+}
+
+function restoreRequestedTrackSelection() {
+  if (!currentPresentation) {
+    return;
+  }
+  try {
+    const audioManager = playerManager.getAudioTracksManager();
+    const textManager = playerManager.getTextTracksManager();
+    if (currentPresentation.selectedAudioId >= 0
+        && audioManager.getTrackById(currentPresentation.selectedAudioId)) {
+      audioManager.setActiveById(currentPresentation.selectedAudioId);
+    }
+    if (currentPresentation.selectedSubtitleId >= 0
+        && textManager.getTrackById(currentPresentation.selectedSubtitleId)) {
+      textManager.setActiveByIds([currentPresentation.selectedSubtitleId]);
+    } else {
+      textManager.setActiveByIds([]);
+    }
+  } catch (error) {
+    console.warn('[SWEET Receiver] Requested tracks are not ready', error);
   }
 }
 
@@ -980,6 +1065,7 @@ function applyTrackSelection(message) {
   if (feedback.length > 0) {
     showToast(feedback.join(' · '));
   }
+  notifyTrackSelection();
 }
 
 function isOptionsVisible() {
@@ -993,7 +1079,9 @@ function cycleMenuSection(direction) {
     index = (index + direction + sections.length) % sections.length;
     if (optionItems(sections[index]).length > 0) {
       menuSection = sections[index];
-      menuSelection = 0;
+      const items = optionItems(menuSection);
+      const selectedIndex = items.findIndex(item => item.selected);
+      menuSelection = selectedIndex >= 0 ? selectedIndex : 0;
       renderOptions();
       return;
     }
@@ -1232,6 +1320,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   playbackHasError = false;
+  restoreRequestedTrackSelection();
   suppressNativePlayerOverlay();
   hideIdle();
   hideLoader();
