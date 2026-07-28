@@ -25,12 +25,14 @@ const pauseTimelineElement = document.getElementById('receiver-pause-timeline');
 const pauseTimeElement = document.getElementById('receiver-pause-time');
 const pauseDurationElement = document.getElementById('receiver-pause-duration');
 const playStateIconElement = document.getElementById('receiver-play-state-icon');
+const playLabelElement = document.getElementById('receiver-play-label');
 const controlElements = Array.from(document.querySelectorAll('[data-control]'));
 const rewindLabelElement = document.getElementById('receiver-rewind-label');
 const forwardLabelElement = document.getElementById('receiver-forward-label');
 const audioLabelElement = document.getElementById('receiver-audio-label');
 const subtitlesLabelElement = document.getElementById('receiver-subtitles-label');
 const qualityLabelElement = document.getElementById('receiver-quality-label');
+const qualityStateIconElement = document.getElementById('receiver-quality-state-icon');
 const optionsElement = document.getElementById('receiver-options');
 const optionsTitleElement = document.getElementById('receiver-options-title');
 const optionsListElement = document.getElementById('receiver-options-list');
@@ -356,6 +358,29 @@ const seekControlLabels = {
   hr: ['30 sek.\nnatrag', '30 sek.\nnaprijed'],
 };
 
+const playbackControlLabels = {
+  en: ['Play', 'Pause'],
+  uk: ['Відтворити', 'Пауза'],
+  ru: ['Играть', 'Пауза'],
+  sk: ['Prehrať', 'Pozastaviť'],
+  cs: ['Přehrát', 'Pozastavit'],
+  hu: ['Lejátszás', 'Szünet'],
+  bg: ['Пусни', 'Пауза'],
+  pl: ['Odtwórz', 'Pauza'],
+  ro: ['Redare', 'Pauză'],
+  az: ['Oynat', 'Fasilə'],
+  sq: ['Luaj', 'Pauzë'],
+  lv: ['Atskaņot', 'Pauze'],
+  et: ['Esita', 'Peata'],
+  el: ['Αναπαραγωγή', 'Παύση'],
+  lt: ['Leisti', 'Pristabdyti'],
+  sr: ['Pusti', 'Pauza'],
+  mk: ['Пушти', 'Пауза'],
+  bs: ['Pusti', 'Pauza'],
+  sl: ['Predvajaj', 'Premor'],
+  hr: ['Reproduciraj', 'Pauza'],
+};
+
 function translate(key) {
   const language = receiverLocale.split('-')[0];
   return (translations[language] || translations.en)[key] || translations.en[key];
@@ -365,6 +390,32 @@ function seekControlLabel(direction) {
   const language = receiverLocale.split('-')[0];
   const labels = seekControlLabels[language] || seekControlLabels.en;
   return labels[direction < 0 ? 0 : 1];
+}
+
+function playbackControlLabel(paused) {
+  const language = receiverLocale.split('-')[0];
+  const labels = playbackControlLabels[language] || playbackControlLabels.en;
+  return labels[paused ? 0 : 1];
+}
+
+function qualityIconPath(maxHeight) {
+  const height = Number(maxHeight);
+  if (!Number.isFinite(height) || height < 0) {
+    return 'assets/player/auto.svg';
+  }
+  if (height < 720) {
+    return 'assets/player/sd.svg';
+  }
+  if (height < 1080) {
+    return 'assets/player/hd.svg';
+  }
+  if (height < 1440) {
+    return 'assets/player/fhd.svg';
+  }
+  if (height < 2160) {
+    return 'assets/player/2k.svg';
+  }
+  return 'assets/player/4k.svg';
 }
 
 document.documentElement.lang = receiverLocale;
@@ -599,6 +650,9 @@ function updateControlLabels() {
   if (forwardLabelElement) {
     forwardLabelElement.textContent = seekControlLabel(1);
   }
+  if (playLabelElement) {
+    playLabelElement.textContent = playbackControlLabel(isPlaybackPaused());
+  }
   if (audioLabelElement) {
     audioLabelElement.textContent = translate('audio');
   }
@@ -607,6 +661,9 @@ function updateControlLabels() {
   }
   if (qualityLabelElement) {
     qualityLabelElement.textContent = translate('quality');
+  }
+  if (qualityStateIconElement) {
+    qualityStateIconElement.src = qualityIconPath(currentPresentation?.maxHeight);
   }
 }
 
