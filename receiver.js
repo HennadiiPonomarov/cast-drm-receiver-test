@@ -50,6 +50,7 @@ let currentPresentation = null;
 let thumbnailCues = [];
 let thumbnailRequestId = 0;
 let thumbnailSprite = null;
+let thumbnailRenderReported = false;
 let controlsTimer = null;
 let menuSection = 'audio';
 let menuSelection = 0;
@@ -450,6 +451,22 @@ function hidePause() {
   setLayerVisible(pauseElement, false);
 }
 
+function scheduleControlsHide(delay = 2800) {
+  controlsTimer = clearTimer(controlsTimer);
+  controlsTimer = setTimeout(() => {
+    controlsTimer = null;
+    const state = playerManager.getPlayerState();
+    if (state === cast.framework.messages.PlayerState.PAUSED) {
+      return;
+    }
+    if (state === cast.framework.messages.PlayerState.PLAYING) {
+      hidePause();
+      return;
+    }
+    scheduleControlsHide(700);
+  }, delay);
+}
+
 function updatePauseProgress() {
   const position = playerManager.getCurrentTimeSec();
   const duration = playerManager.getDurationSec();
@@ -506,8 +523,8 @@ function showPause(autoHide = false) {
   }
   setLayerVisible(pauseElement, true);
   controlsTimer = clearTimer(controlsTimer);
-  if (autoHide && !isPlaybackPaused()) {
-    controlsTimer = setTimeout(hidePause, 2800);
+  if (autoHide) {
+    scheduleControlsHide();
   }
 }
 
@@ -680,22 +697,51 @@ function parseThumbnailVtt(text, playlistUrl) {
 async function loadThumbnailCues(playlistUrl, sprite = null) {
   const requestId = ++thumbnailRequestId;
   thumbnailCues = [];
+  thumbnailRenderReported = false;
   thumbnailSprite = sprite?.imageUrl && sprite.interval > 0 && sprite.cols > 0 && sprite.rows > 0
     ? sprite
     : null;
+  sendReceiverMessage({
+    type: 'thumbnail-status',
+    state: 'metadata',
+    playlist: Boolean(playlistUrl),
+    sprite: Boolean(thumbnailSprite),
+    cueCount: 0,
+  });
   if (!playlistUrl) {
     return;
   }
   try {
     const response = await fetch(playlistUrl, {credentials: 'omit'});
     if (!response.ok) {
+      sendReceiverMessage({
+        type: 'thumbnail-status',
+        state: 'playlist-error',
+        playlist: true,
+        sprite: Boolean(thumbnailSprite),
+        cueCount: 0,
+      });
       return;
     }
     const cues = parseThumbnailVtt(await response.text(), playlistUrl);
     if (requestId === thumbnailRequestId) {
       thumbnailCues = cues;
+      sendReceiverMessage({
+        type: 'thumbnail-status',
+        state: 'ready',
+        playlist: true,
+        sprite: Boolean(thumbnailSprite),
+        cueCount: cues.length,
+      });
     }
   } catch (_) {
+    sendReceiverMessage({
+      type: 'thumbnail-status',
+      state: 'playlist-error',
+      playlist: true,
+      sprite: Boolean(thumbnailSprite),
+      cueCount: 0,
+    });
     // A missing thumbnail preview must not affect playback.
   }
 }
@@ -751,9 +797,29 @@ function renderThumbnailCue(cue) {
     seekImageElement.style.left = `${Math.round(-x * scale)}px`;
     seekImageElement.style.top = `${Math.round(-y * scale)}px`;
     seekImageElement.style.display = 'block';
+    if (!thumbnailRenderReported) {
+      thumbnailRenderReported = true;
+      sendReceiverMessage({
+        type: 'thumbnail-status',
+        state: 'rendered',
+        playlist: thumbnailCues.length > 0,
+        sprite: Boolean(thumbnailSprite),
+        cueCount: thumbnailCues.length,
+      });
+    }
   };
   seekImageElement.onerror = () => {
     seekImageElement.style.display = 'none';
+    if (!thumbnailRenderReported) {
+      thumbnailRenderReported = true;
+      sendReceiverMessage({
+        type: 'thumbnail-status',
+        state: 'image-error',
+        playlist: thumbnailCues.length > 0,
+        sprite: Boolean(thumbnailSprite),
+        cueCount: thumbnailCues.length,
+      });
+    }
   };
   seekImageElement.src = cue.imageUrl;
 }
@@ -1225,6 +1291,7 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
     } else if (message?.type === 'seek-preview') {
       if (message.visible === false) {
         hideSeekPreview();
+        scheduleControlsHide(1800);
       } else {
         showPause(true);
         showSeekPreview(Number(message.positionMs) / 1000);
