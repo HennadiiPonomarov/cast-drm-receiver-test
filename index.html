@@ -106,7 +106,8 @@
       }
 
       #receiver-loader-logo,
-      #receiver-idle-logo {
+      #receiver-idle-logo,
+      #receiver-end-logo {
         position: absolute;
         top: 5vh;
         left: 5vw;
@@ -284,11 +285,10 @@
         align-items: center;
         min-width: min(500px, 62vw);
         max-width: 72vw;
-        padding: 16px 20px 16px 16px;
-        border-left: 4px solid #20c5c9;
-        border-radius: 4px;
-        background: rgba(7, 16, 21, 0.82);
+        padding: 0;
+        background: transparent;
         box-sizing: border-box;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.82));
         transform: translateY(14px);
         transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
       }
@@ -303,7 +303,7 @@
         height: 78px;
         margin-right: 18px;
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.08);
+        background: transparent;
         object-fit: contain;
       }
 
@@ -789,7 +789,7 @@
         height: 152px;
         margin-bottom: 24px;
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.06);
+        background: transparent;
         object-fit: contain;
       }
 
@@ -823,7 +823,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-15"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-16"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -922,6 +922,7 @@
       </div>
     </div>
     <div id="receiver-end" class="receiver-layer" aria-hidden="true">
+      <img id="receiver-end-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-end-content">
         <img id="receiver-end-artwork" alt="">
         <div id="receiver-end-copy">
