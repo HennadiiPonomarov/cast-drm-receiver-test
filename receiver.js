@@ -461,6 +461,11 @@ function scheduleControlsHide(delay = 2800) {
     }
     if (state === cast.framework.messages.PlayerState.PLAYING) {
       hidePause();
+      sendReceiverMessage({
+        type: 'controls-status',
+        state: 'hidden',
+        reason: 'auto',
+      });
       return;
     }
     scheduleControlsHide(700);
