@@ -14,8 +14,6 @@ const transitionArtworkElement = document.getElementById('receiver-transition-ar
 const transitionTitleElement = document.getElementById('receiver-transition-title');
 const transitionBadgeElement = document.getElementById('receiver-transition-badge');
 const transitionSubtitleElement = document.getElementById('receiver-transition-subtitle');
-const toastElement = document.getElementById('receiver-toast');
-const toastLabelElement = document.getElementById('receiver-toast-label');
 const pauseElement = document.getElementById('receiver-pause');
 const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
@@ -49,7 +47,6 @@ const endTitleElement = document.getElementById('receiver-end-title');
 const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
 let transitionTimer = null;
-let toastTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
 let currentPresentation = null;
@@ -444,19 +441,6 @@ function scheduleTransitionHide(delay = 1500) {
   transitionTimer = setTimeout(hideTransition, delay);
 }
 
-function showToast(message, duration = 1800) {
-  if (!message || !toastElement || !toastLabelElement) {
-    return;
-  }
-  toastTimer = clearTimer(toastTimer);
-  toastLabelElement.textContent = message;
-  toastElement.classList.add('visible');
-  toastTimer = setTimeout(() => {
-    toastTimer = null;
-    toastElement.classList.remove('visible');
-  }, duration);
-}
-
 function hidePause() {
   controlsTimer = clearTimer(controlsTimer);
   hideOptions();
@@ -669,7 +653,6 @@ function applySelectedOption() {
     });
     currentPresentation.maxHeight = item.id;
   }
-  showToast(`${translate(menuSection)}: ${item.label}`);
   hideOptions();
   showPause(true);
 }
@@ -1041,30 +1024,11 @@ function applyTrackSelection(message) {
   const subtitleId = Number(message.subtitleId);
   const audioManager = playerManager.getAudioTracksManager();
   const textManager = playerManager.getTextTracksManager();
-  const previousAudioId = audioManager.getActiveId();
-  const previousSubtitleIds = textManager.getActiveIds();
-
   if (Number.isFinite(audioId) && audioId >= 0) {
     audioManager.setActiveById(audioId);
   }
   textManager.setActiveByIds(
     Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
-
-  const feedback = [];
-  if (Number.isFinite(audioId) && audioId >= 0 && audioId !== previousAudioId) {
-    const track = audioManager.getTrackById(audioId);
-    feedback.push(`${translate('audio')}: ${track?.name || track?.language || audioId}`);
-  }
-  const previousSubtitleId = previousSubtitleIds.length > 0 ? previousSubtitleIds[0] : -1;
-  if (subtitleId !== previousSubtitleId) {
-    const track = Number.isFinite(subtitleId) && subtitleId >= 0
-      ? textManager.getTrackById(subtitleId)
-      : null;
-    feedback.push(`${translate('subtitles')}: ${track?.name || track?.language || translate('off')}`);
-  }
-  if (feedback.length > 0) {
-    showToast(feedback.join(' · '));
-  }
   notifyTrackSelection();
 }
 
