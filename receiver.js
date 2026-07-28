@@ -1264,6 +1264,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
+  hideLoader();
   if (pauseElement?.classList.contains('visible')) {
     showPause(true);
   } else {
@@ -1274,6 +1275,9 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
 
 if (cast.framework.events.EventType.TIME_UPDATE) {
   playerManager.addEventListener(cast.framework.events.EventType.TIME_UPDATE, () => {
+    if (playerManager.getPlayerState() === cast.framework.messages.PlayerState.PLAYING) {
+      hideLoader();
+    }
     if (pauseElement?.classList.contains('visible')) {
       updatePauseProgress();
     }
