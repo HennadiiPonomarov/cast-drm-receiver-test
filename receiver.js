@@ -4,6 +4,7 @@ const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
+const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -72,6 +73,7 @@ let seekSettleTimer = null;
 let seekResetTimer = null;
 let seekPreviewFrame = null;
 let subtitleStyleApplyTimer = null;
+let subtitleStyleApplyToken = 0;
 let nativeOverlayObserver = null;
 let controlsFocusArea = 'timeline';
 let controlSelection = 1;
@@ -743,21 +745,56 @@ function applySubtitleStyle(markDirty = true) {
   }
 }
 
-function setActiveSubtitleIds(ids) {
-  const activeIds = Array.isArray(ids) ? ids : [];
-  playerManager.getTextTracksManager().setActiveByIds(activeIds);
+function cancelSubtitleStyleRestore() {
   subtitleStyleApplyTimer = clearTimer(subtitleStyleApplyTimer);
+  subtitleStyleApplyToken += 1;
+}
+
+function scheduleSubtitleStyleRestore(expectedIds) {
+  cancelSubtitleStyleRestore();
+  const activeIds = Array.isArray(expectedIds) ? expectedIds : [];
   if (activeIds.length === 0 || !subtitleStyleDirty) {
     return;
   }
-  // CAF may restore the media's default TextTrackStyle while activating a
-  // previously disabled track. Reapply the user's saved style after that
-  // activation has reached the text renderer.
-  applySubtitleStyle(false);
-  subtitleStyleApplyTimer = setTimeout(() => {
+  const token = subtitleStyleApplyToken;
+  let attempt = 0;
+  const restore = () => {
     subtitleStyleApplyTimer = null;
+    if (token !== subtitleStyleApplyToken) {
+      return;
+    }
+    try {
+      const manager = playerManager.getTextTracksManager();
+      const enabledIds = manager.getActiveIds();
+      if (activeIds.every(id => enabledIds.includes(id))) {
+        applySubtitleStyle(false);
+      }
+    } catch (error) {
+      console.warn('[SWEET Receiver] Subtitle activation is not ready', error);
+    }
+    attempt += 1;
+    if (attempt < SUBTITLE_STYLE_RETRY_DELAYS_MS.length) {
+      subtitleStyleApplyTimer = setTimeout(
+        restore,
+        SUBTITLE_STYLE_RETRY_DELAYS_MS[attempt]);
+    }
+  };
+  subtitleStyleApplyTimer = setTimeout(
+    restore,
+    SUBTITLE_STYLE_RETRY_DELAYS_MS[attempt]);
+}
+
+function setActiveSubtitleIds(ids) {
+  const activeIds = Array.isArray(ids) ? ids : [];
+  const manager = playerManager.getTextTracksManager();
+  cancelSubtitleStyleRestore();
+  if (activeIds.length > 0 && subtitleStyleDirty) {
+    // Apply before activation as well: receivers differ in whether the text
+    // renderer reads the current style before or after setActiveByIds().
     applySubtitleStyle(false);
-  }, 120);
+  }
+  manager.setActiveByIds(activeIds);
+  scheduleSubtitleStyleRestore(activeIds);
 }
 
 function optionItems(section = menuSection) {
@@ -1249,7 +1286,7 @@ function resetPresentationLayers() {
   seekCommitTimer = clearTimer(seekCommitTimer);
   seekSettleTimer = clearTimer(seekSettleTimer);
   seekResetTimer = clearTimer(seekResetTimer);
-  subtitleStyleApplyTimer = clearTimer(subtitleStyleApplyTimer);
+  cancelSubtitleStyleRestore();
   seekRepeatCount = 0;
   pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
