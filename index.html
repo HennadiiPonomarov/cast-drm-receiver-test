@@ -587,7 +587,7 @@
         width: clamp(300px, 33vw, 460px);
         height: 100%;
         padding: 24px 26px;
-        overflow: hidden;
+        overflow: visible;
         border-left: 1px solid rgba(255, 255, 255, 0.08);
         background: rgba(27, 29, 30, 0.98);
         box-sizing: border-box;
@@ -629,7 +629,8 @@
 
       #receiver-options-close {
         position: absolute;
-        right: 0;
+        top: 0;
+        left: -70px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -662,6 +663,11 @@
         flex-direction: column;
         gap: 2px;
         scrollbar-width: none;
+      }
+
+      #receiver-options.has-footer #receiver-options-list {
+        max-height: calc(100% - 166px);
+        margin-bottom: 74px;
       }
 
       #receiver-options-list::-webkit-scrollbar {
@@ -710,6 +716,33 @@
 
       .receiver-option-row.group:first-child {
         margin-top: 0;
+      }
+
+      .receiver-option-row.action {
+        min-height: 48px;
+        border-radius: 4px;
+      }
+
+      #receiver-options-footer {
+        position: absolute;
+        right: 26px;
+        bottom: 24px;
+        left: 26px;
+        display: none;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      #receiver-options-footer.visible {
+        display: block;
+      }
+
+      .receiver-option-icon {
+        width: 22px;
+        height: 22px;
+        margin-right: 12px;
+        opacity: 0.92;
+        object-fit: contain;
       }
 
       .receiver-option-swatch {
@@ -869,7 +902,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-24"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-25"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -951,9 +984,10 @@
     <div id="receiver-options" aria-hidden="true">
       <div id="receiver-options-header">
         <h2 id="receiver-options-title"></h2>
-        <div id="receiver-options-close" aria-hidden="true">&times;</div>
+        <div id="receiver-options-close" role="button" aria-label="Close">&times;</div>
       </div>
       <div id="receiver-options-list"></div>
+      <div id="receiver-options-footer"></div>
     </div>
     <div id="receiver-seek-preview" aria-hidden="true">
       <div id="receiver-seek-frame">

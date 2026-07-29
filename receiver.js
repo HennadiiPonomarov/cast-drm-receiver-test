@@ -38,6 +38,8 @@ const qualityStateIconElement = document.getElementById('receiver-quality-state-
 const optionsElement = document.getElementById('receiver-options');
 const optionsTitleElement = document.getElementById('receiver-options-title');
 const optionsListElement = document.getElementById('receiver-options-list');
+const optionsFooterElement = document.getElementById('receiver-options-footer');
+const optionsCloseElement = document.getElementById('receiver-options-close');
 const seekPreviewElement = document.getElementById('receiver-seek-preview');
 const seekFrameElement = document.getElementById('receiver-seek-frame');
 const seekImageElement = document.getElementById('receiver-seek-image');
@@ -154,6 +156,7 @@ const translations = {
     tryAgain: 'Please try again or choose another video.',
     paused: 'Paused', finished: 'Playback finished', code: 'Code',
     audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', auto: 'Auto', off: 'Off',
+    subtitleStyling: 'Subtitle styling',
     subtitleSize: 'Subtitle size', subtitleColor: 'Subtitle color',
     small: 'Small', medium: 'Medium', large: 'Large',
     white: 'White', yellow: 'Yellow', cyan: 'Cyan',
@@ -166,6 +169,7 @@ const translations = {
     tryAgain: 'Спробуйте ще раз або виберіть інше відео.',
     paused: 'Пауза', finished: 'Відтворення завершено', code: 'Код',
     audio: 'Аудіо', subtitles: 'Субтитри', quality: 'Якість', auto: 'Авто', off: 'Вимкнено',
+    subtitleStyling: 'Оформлення субтитрів',
     subtitleSize: 'Розмір субтитрів', subtitleColor: 'Колір субтитрів',
     small: 'Малий', medium: 'Середній', large: 'Великий',
     white: 'Білий', yellow: 'Жовтий', cyan: 'Бірюзовий',
@@ -178,6 +182,7 @@ const translations = {
     tryAgain: 'Попробуйте ещё раз или выберите другое видео.',
     paused: 'Пауза', finished: 'Просмотр завершён', code: 'Код',
     audio: 'Аудио', subtitles: 'Субтитры', quality: 'Качество', auto: 'Авто', off: 'Выключены',
+    subtitleStyling: 'Оформление субтитров',
     subtitleSize: 'Размер субтитров', subtitleColor: 'Цвет субтитров',
     small: 'Маленький', medium: 'Средний', large: 'Большой',
     white: 'Белый', yellow: 'Жёлтый', cyan: 'Бирюзовый',
@@ -190,6 +195,7 @@ const translations = {
     tryAgain: 'Skúste to znova alebo vyberte iné video.',
     paused: 'Pozastavené', finished: 'Prehrávanie sa skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuté',
+    subtitleStyling: 'Vzhľad titulkov',
     subtitleSize: 'Veľkosť titulkov', subtitleColor: 'Farba titulkov',
     small: 'Malé', medium: 'Stredné', large: 'Veľké',
     white: 'Biela', yellow: 'Žltá', cyan: 'Tyrkysová',
@@ -202,6 +208,7 @@ const translations = {
     tryAgain: 'Zkuste to znovu nebo vyberte jiné video.',
     paused: 'Pozastaveno', finished: 'Přehrávání skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuto',
+    subtitleStyling: 'Vzhled titulků',
     subtitleSize: 'Velikost titulků', subtitleColor: 'Barva titulků',
     small: 'Malé', medium: 'Střední', large: 'Velké',
     white: 'Bílá', yellow: 'Žlutá', cyan: 'Tyrkysová',
@@ -972,6 +979,16 @@ function optionItems(section = menuSection) {
         selected: activeIds.includes(track.trackId),
       })),
       {
+        id: 'subtitle-styling',
+        kind: 'subtitle-styling',
+        label: translate('subtitleStyling'),
+        icon: 'assets/player/settings_icon.svg',
+      },
+    ];
+  }
+  if (section === 'subtitle-style') {
+    return [
+      {
         id: 'subtitle-size-heading',
         kind: 'heading',
         label: translate('subtitleSize'),
@@ -1031,12 +1048,17 @@ function renderOptions() {
   const items = optionItems();
   menuSelection = Math.max(0, Math.min(menuSelection, Math.max(0, items.length - 1)));
   if (optionsTitleElement) {
-    optionsTitleElement.textContent = translate(menuSection);
+    optionsTitleElement.textContent = translate(
+      menuSection === 'subtitle-style' ? 'subtitleStyling' : menuSection);
   }
-  document.getElementById('receiver-options-close')
-    ?.classList.toggle('focused', menuFocusArea === 'close');
+  optionsCloseElement?.classList.toggle('focused', menuFocusArea === 'close');
   if (optionsListElement) {
     optionsListElement.textContent = '';
+    if (optionsFooterElement) {
+      optionsFooterElement.textContent = '';
+      optionsFooterElement.classList.remove('visible');
+    }
+    optionsElement?.classList.remove('has-footer');
     items.forEach((item, index) => {
       const row = document.createElement('div');
       if (item.kind === 'heading') {
@@ -1050,9 +1072,17 @@ function renderOptions() {
       }
       row.className = [
         'receiver-option-row',
+        item.kind === 'subtitle-styling' ? 'action' : '',
         menuFocusArea === 'list' && index === menuSelection ? 'focused' : '',
         item.selected ? 'active' : '',
       ].filter(Boolean).join(' ');
+      if (item.icon) {
+        const icon = document.createElement('img');
+        icon.className = 'receiver-option-icon';
+        icon.src = item.icon;
+        icon.alt = '';
+        row.appendChild(icon);
+      }
       if (item.swatch) {
         const swatch = document.createElement('span');
         swatch.className = 'receiver-option-swatch';
@@ -1063,10 +1093,16 @@ function renderOptions() {
       label.className = 'receiver-option-label';
       label.textContent = item.label;
       row.append(label);
-      optionsListElement.appendChild(row);
+      if (item.kind === 'subtitle-styling' && optionsFooterElement) {
+        optionsFooterElement.appendChild(row);
+        optionsFooterElement.classList.add('visible');
+        optionsElement?.classList.add('has-footer');
+      } else {
+        optionsListElement.appendChild(row);
+      }
     });
     requestAnimationFrame(() => {
-      optionsListElement.querySelector('.receiver-option-row.focused')
+      optionsElement?.querySelector('.receiver-option-row.focused')
         ?.scrollIntoView({block: 'nearest'});
     });
   }
@@ -1077,10 +1113,10 @@ function showOptions(section = menuSection) {
     return false;
   }
   menuSection = section;
-  menuReturnControl = section;
+  menuReturnControl = section === 'subtitle-style' ? 'subtitles' : section;
   menuFocusArea = 'list';
   updateControlLabels();
-  if (section === 'subtitles') {
+  if (section === 'subtitles' || section === 'subtitle-style') {
     syncSubtitleStyleState();
   }
   const items = optionItems();
@@ -1105,13 +1141,34 @@ function hasOptionsForSection(section) {
   if (section === 'audio') {
     return audioTrackCatalog.length > 1;
   }
-  if (section === 'subtitles') {
+  if (section === 'subtitles' || section === 'subtitle-style') {
     return subtitleTrackCatalog.length > 0;
   }
   if (section === 'quality') {
     return (currentPresentation?.qualityOptions || []).length > 1;
   }
   return false;
+}
+
+function showSubtitleStyleOptions() {
+  menuSection = 'subtitle-style';
+  menuReturnControl = 'subtitles';
+  menuFocusArea = 'list';
+  syncSubtitleStyleState();
+  const items = optionItems();
+  const selectedIndex = items.findIndex(item => item.selected);
+  menuSelection = nearestSelectableIndex(items, selectedIndex >= 0 ? selectedIndex : 0);
+  renderOptions();
+}
+
+function returnToSubtitleTrackOptions() {
+  menuSection = 'subtitles';
+  menuReturnControl = 'subtitles';
+  menuFocusArea = 'list';
+  const items = optionItems();
+  const stylingIndex = items.findIndex(item => item.kind === 'subtitle-styling');
+  menuSelection = nearestSelectableIndex(items, stylingIndex >= 0 ? stylingIndex : 0);
+  renderOptions();
 }
 
 function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = true) {
@@ -1156,6 +1213,9 @@ function applySelectedOption() {
   } else if (item.kind === 'subtitle-color') {
     subtitleForegroundColor = item.value;
     applySubtitleStyle();
+  } else if (item.kind === 'subtitle-styling') {
+    showSubtitleStyleOptions();
+    return;
   } else if (item.kind === 'quality') {
     const tracks = activeTrackSelection();
     const request = {
@@ -1814,10 +1874,16 @@ function handleReceiverKey(event) {
 
   if (isOptionsVisible()) {
     if (menuFocusArea === 'close') {
-      if (enter || back || left) {
-        suppressBackKeyUp = back;
+      if (enter) {
         closeOptionsAndRestoreFocus();
-      } else if (up || down) {
+      } else if (back) {
+        suppressBackKeyUp = back;
+        if (menuSection === 'subtitle-style') {
+          returnToSubtitleTrackOptions();
+        } else {
+          closeOptionsAndRestoreFocus();
+        }
+      } else if (right || up || down) {
         menuFocusArea = 'list';
         if (up) {
           const items = optionItems();
@@ -1827,14 +1893,18 @@ function handleReceiverKey(event) {
       }
     } else if (up || down) {
       moveMenuSelection(up ? -1 : 1);
-    } else if (right) {
+    } else if (left) {
       menuFocusArea = 'close';
       renderOptions();
     } else if (enter) {
       applySelectedOption();
-    } else if (back || left) {
+    } else if (back) {
       suppressBackKeyUp = back;
-      closeOptionsAndRestoreFocus();
+      if (menuSection === 'subtitle-style') {
+        returnToSubtitleTrackOptions();
+      } else {
+        closeOptionsAndRestoreFocus();
+      }
     }
     return;
   }
