@@ -4,7 +4,10 @@ const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
+const SEEK_COMMIT_DELAY_MS = 220;
+const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
+const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -84,7 +87,11 @@ let seekPreviewFrame = null;
 let timelineBoundsCache = null;
 let subtitleStyleApplyTimer = null;
 let subtitleStyleApplyToken = 0;
+let trackRestoreTimer = null;
+let trackRestoreToken = 0;
 let nativeOverlayObserver = null;
+let subtitleUiObservers = [];
+let subtitleUiObservedRoots = new WeakSet();
 let controlsFocusArea = 'timeline';
 let controlSelection = 1;
 let suppressBackKeyUp = false;
@@ -92,6 +99,8 @@ let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
 let subtitleStyleDirty = false;
+let playbackPaused = false;
+let subtitlesLifted = false;
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
@@ -145,6 +154,88 @@ function installNativePlayerOverlaySuppression() {
   nativeOverlayObserver?.disconnect();
   nativeOverlayObserver = new MutationObserver(suppressNativePlayerOverlay);
   nativeOverlayObserver.observe(playerShadowRoot, {childList: true, subtree: true});
+}
+
+function visitOpenRoots(root, visitor) {
+  if (!root) {
+    return;
+  }
+  visitor(root);
+  root.querySelectorAll?.('*').forEach(element => {
+    if (element.shadowRoot) {
+      visitOpenRoots(element.shadowRoot, visitor);
+    }
+  });
+}
+
+function styleSubtitleContainer(container) {
+  const transform = subtitlesLifted ? 'translateY(-19vh)' : 'translateY(0)';
+  if (container.style.getPropertyValue('transform') !== transform) {
+    container.style.setProperty('transform', transform, 'important');
+  }
+  if (!container.style.getPropertyValue('transition')) {
+    container.style.setProperty(
+      'transition',
+      'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)',
+      'important');
+  }
+  if (!container.style.getPropertyValue('will-change')) {
+    container.style.setProperty('will-change', 'transform', 'important');
+  }
+}
+
+function styleSubtitleContainersInRoot(root) {
+  if (root.matches?.('.shaka-text-container')) {
+    styleSubtitleContainer(root);
+  }
+  root.querySelectorAll?.('.shaka-text-container').forEach(styleSubtitleContainer);
+}
+
+function applySubtitleViewportPosition() {
+  visitOpenRoots(document, styleSubtitleContainersInRoot);
+}
+
+function observeSubtitleUiRoot(root) {
+  const observableRoot = root === document || root instanceof ShadowRoot;
+  if (!observableRoot || subtitleUiObservedRoots.has(root)) {
+    return;
+  }
+  subtitleUiObservedRoots.add(root);
+  styleSubtitleContainersInRoot(root);
+  const observer = new MutationObserver(mutations => {
+    mutations.forEach(mutation => {
+      mutation.addedNodes.forEach(node => {
+        if (node.nodeType !== Node.ELEMENT_NODE
+            && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
+          return;
+        }
+        visitOpenRoots(node, nestedRoot => {
+          styleSubtitleContainersInRoot(nestedRoot);
+          observeSubtitleUiRoot(nestedRoot);
+        });
+      });
+    });
+  });
+  observer.observe(root, {childList: true, subtree: true});
+  subtitleUiObservers.push(observer);
+}
+
+function setSubtitlesLifted(lifted) {
+  subtitlesLifted = Boolean(lifted);
+  document.documentElement.classList.toggle('subtitles-lifted', subtitlesLifted);
+  applySubtitleViewportPosition();
+}
+
+function installSubtitleUiPositioning() {
+  if (!playerElement?.shadowRoot) {
+    window.setTimeout(installSubtitleUiPositioning, 100);
+    return;
+  }
+  applySubtitleViewportPosition();
+  subtitleUiObservers.forEach(observer => observer.disconnect());
+  subtitleUiObservers = [];
+  subtitleUiObservedRoots = new WeakSet();
+  visitOpenRoots(document, observeSubtitleUiRoot);
 }
 
 // A Web Receiver runs in the Chromecast/TV browser. navigator.language is
@@ -568,9 +659,17 @@ function presentationFor(media, customData = {}) {
   const previousPresentation = currentPresentation?.contentKey === contentKey
     ? currentPresentation
     : null;
-  const previousTracks = previousPresentation
+  const activeTracks = previousPresentation
     ? activeTrackSelection()
     : {audioId: -1, subtitleId: -1};
+  const previousTracks = {
+    audioId: activeTracks.audioId >= 0
+      ? activeTracks.audioId
+      : (previousPresentation?.selectedAudioId ?? -1),
+    subtitleId: activeTracks.subtitleId >= 0
+      ? activeTracks.subtitleId
+      : (previousPresentation?.selectedSubtitleId ?? -1),
+  };
   const requestedQualityOptions = normalizedQualityOptions(customData.qualityOptions);
   const qualityOptions = requestedQualityOptions.length > 0
     ? requestedQualityOptions
@@ -673,6 +772,7 @@ function hidePause() {
   controlsTimer = clearTimer(controlsTimer);
   hideOptions();
   setLayerVisible(pauseElement, false);
+  setSubtitlesLifted(false);
   hideSeekPreview();
 }
 
@@ -855,6 +955,7 @@ function showPause(autoHide = false) {
   }
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);
+    setSubtitlesLifted(false);
     return;
   }
   const wasVisible = controlsAreVisible();
@@ -886,6 +987,7 @@ function showPause(autoHide = false) {
       : 'assets/player/pause.svg';
   }
   setLayerVisible(pauseElement, true);
+  setSubtitlesLifted(true);
   if (!timelineBoundsCache) {
     requestAnimationFrame(cacheTimelineBounds);
   }
@@ -1169,6 +1271,7 @@ function showOptions(section = menuSection) {
   controlsTimer = clearTimer(controlsTimer);
   hideSeekPreview();
   setLayerVisible(pauseElement, false);
+  setSubtitlesLifted(false);
   optionsElement?.classList.add('visible');
   optionsElement?.setAttribute('aria-hidden', 'false');
   return true;
@@ -1277,10 +1380,15 @@ function activeTrackSelection() {
 }
 
 function notifyTrackSelection() {
+  const selection = activeTrackSelection();
+  if (currentPresentation) {
+    currentPresentation.selectedAudioId = selection.audioId;
+    currentPresentation.selectedSubtitleId = selection.subtitleId;
+  }
   sendReceiverMessage({
     type: 'track-selection',
     contentKey: currentPresentation?.contentKey || '',
-    ...activeTrackSelection(),
+    ...selection,
   });
 }
 
@@ -1292,10 +1400,16 @@ function applySelectedOption() {
   let returnControl = '';
   if (item.kind === 'audio-track') {
     playerManager.getAudioTracksManager().setActiveById(item.id);
+    if (currentPresentation) {
+      currentPresentation.selectedAudioId = Number(item.id);
+    }
     setTimeout(notifyTrackSelection, 0);
     returnControl = 'audio';
   } else if (item.kind === 'subtitle-track') {
     setActiveSubtitleIds(item.id < 0 ? [] : [item.id]);
+    if (currentPresentation) {
+      currentPresentation.selectedSubtitleId = item.id < 0 ? -1 : Number(item.id);
+    }
     setTimeout(notifyTrackSelection, 0);
     returnControl = 'subtitles';
   } else if (item.kind === 'subtitle-size') {
@@ -1318,6 +1432,8 @@ function applySelectedOption() {
       subtitleId: tracks.subtitleId,
     };
     currentPresentation.maxHeight = item.id;
+    currentPresentation.selectedAudioId = tracks.audioId;
+    currentPresentation.selectedSubtitleId = tracks.subtitleId;
     updateControlLabels();
     pendingControlAfterLoad = {
       control: 'quality',
@@ -1657,6 +1773,7 @@ function resetPresentationLayers() {
   seekSettleTimer = clearTimer(seekSettleTimer);
   seekResetTimer = clearTimer(seekResetTimer);
   cancelSubtitleStyleRestore();
+  cancelTrackSelectionRestore();
   seekRepeatCount = 0;
   timelineBoundsCache = null;
   pauseTimelineElement?.classList.remove('scrubbing');
@@ -1796,26 +1913,82 @@ function sendTrackCatalog() {
   }
 }
 
+function cancelTrackSelectionRestore() {
+  trackRestoreTimer = clearTimer(trackRestoreTimer);
+  trackRestoreToken += 1;
+}
+
 function restoreRequestedTrackSelection() {
   if (!currentPresentation) {
-    return;
+    return true;
   }
   try {
     const audioManager = playerManager.getAudioTracksManager();
     const textManager = playerManager.getTextTracksManager();
-    if (currentPresentation.selectedAudioId >= 0
-        && audioManager.getTrackById(currentPresentation.selectedAudioId)) {
-      audioManager.setActiveById(currentPresentation.selectedAudioId);
+    let ready = true;
+    const requestedAudioId = Number(currentPresentation.selectedAudioId);
+    const requestedSubtitleId = Number(currentPresentation.selectedSubtitleId);
+
+    if (Number.isFinite(requestedAudioId) && requestedAudioId >= 0) {
+      if (audioManager.getTrackById(requestedAudioId)) {
+        if (!sameTrackId(audioManager.getActiveId(), requestedAudioId)) {
+          audioManager.setActiveById(requestedAudioId);
+        }
+      } else {
+        ready = false;
+      }
     }
-    if (currentPresentation.selectedSubtitleId >= 0
-        && textManager.getTrackById(currentPresentation.selectedSubtitleId)) {
-      setActiveSubtitleIds([currentPresentation.selectedSubtitleId]);
-    } else {
+
+    const activeSubtitleIds = textManager.getActiveIds();
+    if (Number.isFinite(requestedSubtitleId) && requestedSubtitleId >= 0) {
+      if (textManager.getTrackById(requestedSubtitleId)) {
+        if (!activeSubtitleIds.some(id => sameTrackId(id, requestedSubtitleId))) {
+          setActiveSubtitleIds([requestedSubtitleId]);
+        } else {
+          scheduleSubtitleStyleRestore([requestedSubtitleId]);
+        }
+      } else {
+        // Do not disable the currently active subtitle while CAF is still
+        // rebuilding its track managers after seek or replacement LOAD.
+        ready = false;
+      }
+    } else if (activeSubtitleIds.length > 0) {
       setActiveSubtitleIds([]);
     }
+    return ready;
   } catch (error) {
     console.warn('[SWEET Receiver] Requested tracks are not ready', error);
+    return false;
   }
+}
+
+function scheduleTrackSelectionRestore() {
+  cancelTrackSelectionRestore();
+  if (!currentPresentation) {
+    return;
+  }
+  const token = trackRestoreToken;
+  let attempt = 0;
+  const restore = () => {
+    trackRestoreTimer = null;
+    if (token !== trackRestoreToken || !currentPresentation) {
+      return;
+    }
+    const ready = restoreRequestedTrackSelection();
+    if (ready) {
+      sendTrackCatalog();
+      return;
+    }
+    attempt += 1;
+    if (attempt < TRACK_RESTORE_RETRY_DELAYS_MS.length) {
+      trackRestoreTimer = setTimeout(
+        restore,
+        TRACK_RESTORE_RETRY_DELAYS_MS[attempt]);
+    }
+  };
+  trackRestoreTimer = setTimeout(
+    restore,
+    TRACK_RESTORE_RETRY_DELAYS_MS[attempt]);
 }
 
 function applyTrackSelection(message) {
@@ -1823,10 +1996,17 @@ function applyTrackSelection(message) {
     const audioId = Number(message.audioId);
     if (Number.isFinite(audioId) && audioId >= 0) {
       playerManager.getAudioTracksManager().setActiveById(audioId);
+      if (currentPresentation) {
+        currentPresentation.selectedAudioId = audioId;
+      }
     }
   }
   if (hasOwn(message, 'subtitleId')) {
     const subtitleId = Number(message.subtitleId);
+    if (currentPresentation) {
+      currentPresentation.selectedSubtitleId =
+        Number.isFinite(subtitleId) && subtitleId >= 0 ? subtitleId : -1;
+    }
     setActiveSubtitleIds(
       Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
   }
@@ -1948,31 +2128,41 @@ function previewRemoteSeek(direction) {
     if (Number.isFinite(target)) {
       playerManager.seek(target);
     }
-    hideSeekPreview();
-    showPause(true);
+    scheduleControlsHide();
     seekSettleTimer = clearTimer(seekSettleTimer);
     seekSettleTimer = setTimeout(() => {
       pendingSeek = null;
       seekSettleTimer = null;
+      hideSeekPreview();
+      scheduleTrackSelectionRestore();
       if (controlsAreVisible()) {
         updatePauseProgress();
       }
-    }, 2500);
-  }, 360);
+    }, SEEK_SETTLE_TIMEOUT_MS);
+  }, SEEK_COMMIT_DELAY_MS);
 }
 
 function togglePlayback() {
   if (isPlaybackPaused()) {
+    playbackPaused = false;
     playerManager.play();
   } else {
+    playbackPaused = true;
     playerManager.pause();
   }
   showPause(true);
 }
 
 function isPlaybackPaused() {
-  return playerManager.getPlayerState()
-    !== cast.framework.messages.PlayerState.PLAYING;
+  const state = playerManager.getPlayerState();
+  if (state === cast.framework.messages.PlayerState.PAUSED) {
+    return true;
+  }
+  if (state === cast.framework.messages.PlayerState.PLAYING
+      || state === cast.framework.messages.PlayerState.BUFFERING) {
+    return false;
+  }
+  return playbackPaused;
 }
 
 function isBackKeyEvent(event) {
@@ -2191,6 +2381,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   const customData = media?.customData || loadRequest.customData || {};
   playbackStopped = false;
   playbackEnded = false;
+  playbackPaused = loadRequest.autoplay === false;
   showControlsOnNextPlayback = true;
   currentPresentation = presentationFor(media, customData);
   if (pendingControlAfterLoad
@@ -2241,6 +2432,7 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackConfig.protectionSystem = undefined;
   playbackConfig.licenseRequestHandler = undefined;
   playbackConfig.shakaConfig = undefined;
+  playbackConfig.enableUITextDisplayer = true;
 
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
@@ -2334,7 +2526,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   playbackHasError = false;
-  restoreRequestedTrackSelection();
+  scheduleTrackSelectionRestore();
   if (subtitleStyleDirty) {
     applySubtitleStyle(false);
   } else {
@@ -2378,6 +2570,7 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
 });
 
 function handlePlaybackPause() {
+  playbackPaused = true;
   hideLoader();
   if (playbackEnded) {
     hidePause();
@@ -2393,8 +2586,10 @@ function handlePlaybackPause() {
 }
 
 function handlePlaybackPlaying() {
+  playbackPaused = false;
   playbackStopped = false;
   playbackEnded = false;
+  scheduleTrackSelectionRestore();
   hideLoader();
   if (restorePendingControlAfterLoad(true)) {
     hideEnd();
@@ -2408,6 +2603,7 @@ function handlePlaybackPlaying() {
   }
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);
+    setSubtitlesLifted(false);
   } else if (pauseElement?.classList.contains('visible')) {
     showPause(true);
   } else {
@@ -2430,6 +2626,8 @@ if (cast.framework.events.EventType.TIME_UPDATE) {
       if (Number.isFinite(actualPosition) && Math.abs(actualPosition - pendingSeek) < 2.5) {
         pendingSeek = null;
         seekSettleTimer = clearTimer(seekSettleTimer);
+        hideSeekPreview();
+        scheduleTrackSelectionRestore();
       }
     }
     if (playerManager.getPlayerState() === cast.framework.messages.PlayerState.PLAYING) {
@@ -2492,5 +2690,6 @@ options.customNamespaces = {
 context.start(options);
 
 installNativePlayerOverlaySuppression();
+installSubtitleUiPositioning();
 hideLoader();
 showIdle();
