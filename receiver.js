@@ -108,6 +108,7 @@ let subtitleForegroundColor = '#FFFFFFFF';
 let subtitleStyleDirty = false;
 let playbackPaused = false;
 let subtitlesLifted = false;
+let hasSystemMediaControlsOverlay = false;
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
@@ -2703,6 +2704,10 @@ function handlePlaybackPause() {
     showIdle();
     return;
   }
+  if (hasSystemMediaControlsOverlay) {
+    hidePause();
+    return;
+  }
   showPause();
 }
 
@@ -2820,6 +2825,17 @@ options.customNamespaces = {
 // so touch-enabled and built-in Cast devices do not draw a second control row.
 cast.framework.ui.Controls.getInstance().clearDefaultSlotAssignments();
 context.start(options);
+
+cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()
+    .then(hasOverlay => {
+      hasSystemMediaControlsOverlay = Boolean(hasOverlay);
+      if (hasSystemMediaControlsOverlay && playbackPaused) {
+        hidePause();
+      }
+    })
+    .catch(error => {
+      console.warn('[SWEET Receiver] Cannot detect system media controls', error);
+    });
 
 installNativePlayerOverlaySuppression();
 installSubtitleUiPositioning();
