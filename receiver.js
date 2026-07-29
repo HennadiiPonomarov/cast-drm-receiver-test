@@ -1953,12 +1953,42 @@ function consumeRemoteKey(event) {
 
 function handleReceiverKey(event) {
   const key = event.key || '';
-  const code = event.keyCode;
-  const left = key === 'ArrowLeft' || code === 37;
-  const right = key === 'ArrowRight' || code === 39;
-  const up = key === 'ArrowUp' || code === 38;
-  const down = key === 'ArrowDown' || code === 40;
-  const enter = key === 'Enter' || key === ' ' || code === 13 || code === 23;
+  const eventCode = event.code || event.keyIdentifier || '';
+  const code = Number(event.keyCode || event.which || 0);
+  // Chromecast built-in devices may expose either browser key codes or the
+  // original Android TV DPAD codes.
+  const left = key === 'ArrowLeft'
+    || key === 'Left'
+    || eventCode === 'ArrowLeft'
+    || code === 21
+    || code === 37;
+  const right = key === 'ArrowRight'
+    || key === 'Right'
+    || eventCode === 'ArrowRight'
+    || code === 22
+    || code === 39;
+  const up = key === 'ArrowUp'
+    || key === 'Up'
+    || eventCode === 'ArrowUp'
+    || code === 19
+    || code === 38;
+  const down = key === 'ArrowDown'
+    || key === 'Down'
+    || eventCode === 'ArrowDown'
+    || code === 20
+    || code === 40;
+  const enter = key === 'Enter'
+    || key === ' '
+    || key === 'Spacebar'
+    || key === 'Accept'
+    || key === 'Select'
+    || key === 'OK'
+    || eventCode === 'Enter'
+    || eventCode === 'NumpadEnter'
+    || code === 13
+    || code === 23
+    || code === 66
+    || code === 160;
   const back = isBackKeyEvent(event);
   const playPause = key === 'MediaPlayPause' || code === 179;
   const stop = key === 'MediaStop' || code === 86 || code === 178 || code === 413;
@@ -2022,7 +2052,27 @@ function handleReceiverKey(event) {
   }
 
   if (!controlsAreVisible()) {
+    if (enter) {
+      showPause(true);
+      setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
+      return;
+    }
+    if (left || right) {
+      showPause(false);
+      if (!pauseTimelineElement?.hidden) {
+        setControlsFocus('timeline');
+        previewRemoteSeek(left ? -1 : 1);
+      } else {
+        setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
+        showPause(true);
+      }
+      return;
+    }
     showPause(true);
+    if (up || down) {
+      setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
+      return;
+    }
   }
 
   if (playPause) {
