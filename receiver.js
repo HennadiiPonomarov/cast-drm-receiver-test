@@ -71,6 +71,7 @@ let menuSelection = 0;
 let menuFocusArea = 'list';
 let menuReturnControl = 'audio';
 let pendingControlAfterLoad = null;
+let showControlsOnNextPlayback = false;
 let audioTrackCatalog = [];
 let subtitleTrackCatalog = [];
 let pendingSeek = null;
@@ -1219,6 +1220,38 @@ function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = tru
   setControlsFocus('actions', CONTROL_ORDER.indexOf(control));
 }
 
+function restorePendingControlAfterLoad(force = false) {
+  if (!pendingControlAfterLoad || !currentPresentation) {
+    return false;
+  }
+  if (pendingControlAfterLoad.contentKey !== currentPresentation.contentKey
+      || Date.now() > pendingControlAfterLoad.expiresAt) {
+    pendingControlAfterLoad = null;
+    return false;
+  }
+  if (!pendingControlAfterLoad.loadObserved) {
+    return false;
+  }
+  const state = playerManager.getPlayerState();
+  const ready = state === cast.framework.messages.PlayerState.PLAYING
+    || state === cast.framework.messages.PlayerState.PAUSED;
+  if (!force && !ready) {
+    return false;
+  }
+  const pending = pendingControlAfterLoad;
+  pendingControlAfterLoad = null;
+  showControlsOnNextPlayback = false;
+  if (pending.control === 'quality' && currentPresentation) {
+    currentPresentation.maxHeight = normalizedMaxHeight(pending.maxHeight);
+  }
+  showPause(true);
+  const control = controlElementFor(pending.control);
+  setControlsFocus(
+    'actions',
+    CONTROL_ORDER.indexOf(control && !control.hidden ? pending.control : 'play'));
+  return true;
+}
+
 function activeTrackSelection() {
   try {
     const audioId = playerManager.getAudioTracksManager().getActiveId();
@@ -1280,7 +1313,9 @@ function applySelectedOption() {
     pendingControlAfterLoad = {
       control: 'quality',
       contentKey: currentPresentation.contentKey,
-      expiresAt: Date.now() + 15000,
+      maxHeight: item.id,
+      loadObserved: false,
+      expiresAt: Date.now() + 60000,
     };
     closeOptionsAndRestoreFocus('quality');
     sendReceiverMessage(request);
@@ -2147,10 +2182,13 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   const customData = media?.customData || loadRequest.customData || {};
   playbackStopped = false;
   playbackEnded = false;
+  showControlsOnNextPlayback = true;
   currentPresentation = presentationFor(media, customData);
   if (pendingControlAfterLoad
       && pendingControlAfterLoad.contentKey !== currentPresentation.contentKey) {
     pendingControlAfterLoad = null;
+  } else if (pendingControlAfterLoad) {
+    pendingControlAfterLoad.loadObserved = true;
   }
   audioTrackCatalog = [];
   subtitleTrackCatalog = [];
@@ -2299,16 +2337,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideReceiverStatus();
   hideTransition();
   sendTrackCatalog();
-  if (pendingControlAfterLoad
-      && pendingControlAfterLoad.contentKey === currentPresentation?.contentKey
-      && Date.now() <= pendingControlAfterLoad.expiresAt) {
-    const returnControl = pendingControlAfterLoad.control;
-    pendingControlAfterLoad = null;
-    showPause(true);
-    setControlsFocus('actions', CONTROL_ORDER.indexOf(returnControl));
-  } else {
-    pendingControlAfterLoad = null;
-  }
+  restorePendingControlAfterLoad(true);
 });
 
 function handleMediaFinished(event) {
@@ -2353,6 +2382,16 @@ function handlePlaybackPlaying() {
   playbackStopped = false;
   playbackEnded = false;
   hideLoader();
+  if (restorePendingControlAfterLoad(true)) {
+    hideEnd();
+    return;
+  }
+  if (showControlsOnNextPlayback) {
+    showControlsOnNextPlayback = false;
+    showPause(true);
+    hideEnd();
+    return;
+  }
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);
   } else if (pauseElement?.classList.contains('visible')) {
@@ -2381,6 +2420,7 @@ if (cast.framework.events.EventType.TIME_UPDATE) {
     }
     if (playerManager.getPlayerState() === cast.framework.messages.PlayerState.PLAYING) {
       hideLoader();
+      restorePendingControlAfterLoad();
     }
     if (pauseElement?.classList.contains('visible')) {
       updatePauseProgress();
@@ -2407,6 +2447,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
       applyTrackSelection(message);
     } else if (message?.type === 'quality-catalog') {
       applyQualityCatalog(message);
+    } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
+      pendingControlAfterLoad.loadObserved = true;
+      restorePendingControlAfterLoad(true);
     } else if (message?.type === 'seek-preview') {
       if (message.visible === false) {
         hideSeekPreview();
