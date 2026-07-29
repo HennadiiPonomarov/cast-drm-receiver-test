@@ -177,7 +177,6 @@ function suppressNativePlayerOverlay() {
 function installNativePlayerOverlaySuppression() {
   const playerShadowRoot = playerElement?.shadowRoot;
   if (!playerShadowRoot) {
-    window.setTimeout(installNativePlayerOverlaySuppression, 100);
     return;
   }
   suppressNativePlayerOverlay();
@@ -257,10 +256,6 @@ function setSubtitlesLifted(lifted) {
 }
 
 function installSubtitleUiPositioning() {
-  if (!playerElement?.shadowRoot) {
-    window.setTimeout(installSubtitleUiPositioning, 100);
-    return;
-  }
   applySubtitleViewportPosition();
   subtitleUiObservers.forEach(observer => observer.disconnect());
   subtitleUiObservers = [];
@@ -2811,6 +2806,9 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
+// A plain media element keeps CAF responsible for playback, DRM, tracks and
+// media sessions while preventing cast-media-player from drawing a second UI.
+options.mediaElement = playerElement;
 // Widevine CMAF HLS must use Shaka. MPL is legacy and stalls after buffering
 // encrypted fMP4 segments on this receiver. HLS segment format fields above
 // are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
