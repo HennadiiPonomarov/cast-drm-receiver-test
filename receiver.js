@@ -1252,6 +1252,15 @@ function restorePendingControlAfterLoad(force = false) {
   return true;
 }
 
+function isReplacementLoadActive() {
+  return Boolean(
+    pendingControlAfterLoad
+    && pendingControlAfterLoad.loadObserved
+    && currentPresentation
+    && pendingControlAfterLoad.contentKey === currentPresentation.contentKey
+    && Date.now() <= pendingControlAfterLoad.expiresAt);
+}
+
 function activeTrackSelection() {
   try {
     const audioId = playerManager.getAudioTracksManager().getActiveId();
@@ -2337,10 +2346,12 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideReceiverStatus();
   hideTransition();
   sendTrackCatalog();
-  restorePendingControlAfterLoad(true);
 });
 
 function handleMediaFinished(event) {
+  if (isReplacementLoadActive()) {
+    return;
+  }
   const endedReason = event.endedReason;
   const endedNaturally = endedReason === cast.framework.events.EndedReason.END_OF_STREAM;
   if (endedNaturally && currentPresentation?.isMovie && !playbackHasError) {
@@ -2352,6 +2363,9 @@ function handleMediaFinished(event) {
 }
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_STOP, () => {
+  if (isReplacementLoadActive()) {
+    return;
+  }
   enterStoppedState();
 });
 
