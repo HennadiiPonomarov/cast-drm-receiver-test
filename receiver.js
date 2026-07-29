@@ -918,10 +918,10 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
   }
   pauseTimelineElement?.classList.toggle('scrubbing', isScrubbing);
   if (pauseTimeElement) {
-    pauseTimeElement.textContent = boundedDuration > 0 ? formatTime(position) : presentationBadge();
+    pauseTimeElement.textContent = boundedDuration > 0 ? formatSeekTime(position) : presentationBadge();
   }
   if (pauseDurationElement) {
-    pauseDurationElement.textContent = boundedDuration > 0 ? formatTime(boundedDuration) : '';
+    pauseDurationElement.textContent = boundedDuration > 0 ? formatSeekTime(boundedDuration) : '';
   }
 }
 
