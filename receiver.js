@@ -66,6 +66,8 @@ let controlsTimer = null;
 let menuSection = 'audio';
 let menuSelection = 0;
 let menuFocusArea = 'list';
+let menuReturnControl = 'audio';
+let pendingControlAfterLoad = null;
 let audioTrackCatalog = [];
 let subtitleTrackCatalog = [];
 let pendingSeek = null;
@@ -499,9 +501,20 @@ function metadataImage(metadata) {
   return secureMediaUrl(image?.url || image || '');
 }
 
+function hasOwn(object, key) {
+  return Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
+}
+
 function presentationFor(media, customData = {}) {
   const metadata = media?.metadata || {};
-  const qualityOptions = Array.isArray(customData.qualityOptions)
+  const title = metadata.title || customData.title || '';
+  const previousPresentation = currentPresentation?.title === title
+    ? currentPresentation
+    : null;
+  const previousTracks = previousPresentation
+    ? activeTrackSelection()
+    : {audioId: -1, subtitleId: -1};
+  const requestedQualityOptions = Array.isArray(customData.qualityOptions)
     ? customData.qualityOptions
         .map(option => ({
           maxHeight: option?.maxHeight !== null && Number.isFinite(Number(option?.maxHeight))
@@ -510,29 +523,56 @@ function presentationFor(media, customData = {}) {
           label: option?.label || translate('auto'),
         }))
     : [];
+  const qualityOptions = requestedQualityOptions.length > 0
+    ? requestedQualityOptions
+    : (previousPresentation?.qualityOptions || []).map(option => ({...option}));
+  const maxHeight = customData.maxHeight !== null && customData.maxHeight !== undefined
+    && Number.isFinite(Number(customData.maxHeight))
+    ? Number(customData.maxHeight)
+    : (previousPresentation?.maxHeight ?? -1);
   return {
-    title: metadata.title || customData.title || '',
-    subtitle: metadata.subtitle || customData.subtitle || '',
-    artworkUrl: metadataImage(metadata) || secureMediaUrl(customData.artworkUrl || ''),
-    isLive: Boolean(customData.isLive),
-    isRecording: Boolean(customData.isRecording),
-    isMovie: Boolean(customData.isMovie) || (!customData.isLive && !customData.isRecording),
-    thumbnailsPlaylistUrl: secureMediaUrl(customData.thumbnailsPlaylistUrl || ''),
-    thumbnailImageUrl: secureMediaUrl(customData.thumbnailImageUrl || ''),
-    thumbnailInterval: Number(customData.thumbnailInterval) || 0,
-    thumbnailCols: Number(customData.thumbnailCols) || 0,
-    thumbnailRows: Number(customData.thumbnailRows) || 0,
+    title,
+    subtitle: metadata.subtitle || customData.subtitle || previousPresentation?.subtitle || '',
+    artworkUrl: metadataImage(metadata)
+      || secureMediaUrl(customData.artworkUrl || '')
+      || previousPresentation?.artworkUrl
+      || '',
+    isLive: hasOwn(customData, 'isLive')
+      ? Boolean(customData.isLive)
+      : Boolean(previousPresentation?.isLive),
+    isRecording: hasOwn(customData, 'isRecording')
+      ? Boolean(customData.isRecording)
+      : Boolean(previousPresentation?.isRecording),
+    isMovie: hasOwn(customData, 'isMovie')
+      ? Boolean(customData.isMovie)
+      : (previousPresentation?.isMovie ?? (!customData.isLive && !customData.isRecording)),
+    thumbnailsPlaylistUrl: secureMediaUrl(customData.thumbnailsPlaylistUrl || '')
+      || previousPresentation?.thumbnailsPlaylistUrl
+      || '',
+    thumbnailImageUrl: secureMediaUrl(customData.thumbnailImageUrl || '')
+      || previousPresentation?.thumbnailImageUrl
+      || '',
+    thumbnailInterval: Number(customData.thumbnailInterval)
+      || previousPresentation?.thumbnailInterval
+      || 0,
+    thumbnailCols: Number(customData.thumbnailCols)
+      || previousPresentation?.thumbnailCols
+      || 0,
+    thumbnailRows: Number(customData.thumbnailRows)
+      || previousPresentation?.thumbnailRows
+      || 0,
     qualityOptions,
-    maxHeight: customData.maxHeight !== null && customData.maxHeight !== undefined
-      && Number.isFinite(Number(customData.maxHeight))
-      ? Number(customData.maxHeight)
-      : -1,
-    selectedAudioId: Number.isFinite(Number(customData.selectedAudioId))
+    maxHeight,
+    selectedAudioId: customData.selectedAudioId !== null
+      && customData.selectedAudioId !== undefined
+      && Number.isFinite(Number(customData.selectedAudioId))
       ? Number(customData.selectedAudioId)
-      : -1,
-    selectedSubtitleId: Number.isFinite(Number(customData.selectedSubtitleId))
+      : previousTracks.audioId,
+    selectedSubtitleId: customData.selectedSubtitleId !== null
+      && customData.selectedSubtitleId !== undefined
+      && Number.isFinite(Number(customData.selectedSubtitleId))
       ? Number(customData.selectedSubtitleId)
-      : -1,
+      : previousTracks.subtitleId,
   };
 }
 
@@ -592,21 +632,82 @@ function controlsAreVisible() {
 }
 
 function renderControlsFocus() {
-  pauseTimelineElement?.classList.toggle('focused', controlsFocusArea === 'timeline');
+  pauseTimelineElement?.classList.toggle(
+    'focused',
+    controlsFocusArea === 'timeline' && !pauseTimelineElement.hidden);
   controlElements.forEach(element => {
     const index = CONTROL_ORDER.indexOf(element.dataset.control);
     element.classList.toggle(
       'focused',
-      controlsFocusArea === 'actions' && index === controlSelection);
+      !element.hidden && controlsFocusArea === 'actions' && index === controlSelection);
   });
 }
 
+function controlElementFor(name) {
+  return controlElements.find(element => element.dataset.control === name) || null;
+}
+
+function availableControlNames() {
+  return CONTROL_ORDER.filter(name => !controlElementFor(name)?.hidden);
+}
+
 function setControlsFocus(area, selection = controlSelection) {
-  controlsFocusArea = area === 'actions' ? 'actions' : 'timeline';
+  const timelineAvailable = Boolean(pauseTimelineElement && !pauseTimelineElement.hidden);
+  controlsFocusArea = area === 'actions' || !timelineAvailable ? 'actions' : 'timeline';
   if (controlsFocusArea === 'actions') {
-    controlSelection = Math.max(0, Math.min(CONTROL_ORDER.length - 1, selection));
+    const requested = CONTROL_ORDER[
+      Math.max(0, Math.min(CONTROL_ORDER.length - 1, selection))];
+    const available = availableControlNames();
+    const selectedName = available.includes(requested)
+      ? requested
+      : (available.includes('play') ? 'play' : available[0]);
+    controlSelection = Math.max(0, CONTROL_ORDER.indexOf(selectedName));
   }
   renderControlsFocus();
+}
+
+function updateControlAvailability() {
+  const duration = playerManager.getDurationSec();
+  const seekable = !currentPresentation?.isLive
+    && Number.isFinite(duration)
+    && duration > 0;
+  const availability = {
+    rewind: seekable,
+    play: true,
+    forward: seekable,
+    audio: audioTrackCatalog.length > 1,
+    subtitles: subtitleTrackCatalog.length > 0,
+    quality: (currentPresentation?.qualityOptions || []).length > 1,
+  };
+  CONTROL_ORDER.forEach(name => {
+    const element = controlElementFor(name);
+    if (element) {
+      element.hidden = !availability[name];
+    }
+  });
+  if (pauseTimelineElement) {
+    pauseTimelineElement.hidden = !seekable;
+  }
+  const settingControls = document.getElementById('receiver-setting-controls');
+  if (settingControls) {
+    settingControls.hidden = !availability.audio
+      && !availability.subtitles
+      && !availability.quality;
+  }
+  pauseElement?.classList.toggle('live-controls', !seekable);
+  pauseElement?.classList.toggle('transport-only', Boolean(settingControls?.hidden));
+  if (controlsFocusArea === 'timeline' && !seekable) {
+    setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
+  } else if (controlsFocusArea === 'actions') {
+    const selectedControl = controlElementFor(CONTROL_ORDER[controlSelection]);
+    if (selectedControl?.hidden) {
+      setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
+      return;
+    }
+    renderControlsFocus();
+  } else {
+    renderControlsFocus();
+  }
 }
 
 function cacheTimelineBounds() {
@@ -727,6 +828,7 @@ function showPause(autoHide = false) {
       pauseArtworkElement.src = currentPresentation.artworkUrl;
     }
   }
+  updateControlAvailability();
   updatePauseProgress();
   updateControlLabels();
   if (playStateIconElement) {
@@ -739,7 +841,9 @@ function showPause(autoHide = false) {
     requestAnimationFrame(cacheTimelineBounds);
   }
   if (!wasVisible) {
-    setControlsFocus('timeline');
+    setControlsFocus(
+      pauseTimelineElement?.hidden ? 'actions' : 'timeline',
+      CONTROL_ORDER.indexOf('play'));
   } else {
     renderControlsFocus();
   }
@@ -969,7 +1073,11 @@ function renderOptions() {
 }
 
 function showOptions(section = menuSection) {
+  if (!hasOptionsForSection(section)) {
+    return false;
+  }
   menuSection = section;
+  menuReturnControl = section;
   menuFocusArea = 'list';
   updateControlLabels();
   if (section === 'subtitles') {
@@ -984,12 +1092,32 @@ function showOptions(section = menuSection) {
   setLayerVisible(pauseElement, false);
   optionsElement?.classList.add('visible');
   optionsElement?.setAttribute('aria-hidden', 'false');
+  return true;
 }
 
 function hideOptions() {
   optionsElement?.classList.remove('visible');
   optionsElement?.setAttribute('aria-hidden', 'true');
   menuFocusArea = 'list';
+}
+
+function hasOptionsForSection(section) {
+  if (section === 'audio') {
+    return audioTrackCatalog.length > 1;
+  }
+  if (section === 'subtitles') {
+    return subtitleTrackCatalog.length > 0;
+  }
+  if (section === 'quality') {
+    return (currentPresentation?.qualityOptions || []).length > 1;
+  }
+  return false;
+}
+
+function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = true) {
+  hideOptions();
+  showPause(autoHide);
+  setControlsFocus('actions', CONTROL_ORDER.indexOf(control));
 }
 
 function activeTrackSelection() {
@@ -1030,21 +1158,26 @@ function applySelectedOption() {
     applySubtitleStyle();
   } else if (item.kind === 'quality') {
     const tracks = activeTrackSelection();
-    sendReceiverMessage({
+    const request = {
       type: 'quality-request',
       maxHeight: item.id,
       positionMs: Math.round(playerManager.getCurrentTimeSec() * 1000),
       audioId: tracks.audioId,
       subtitleId: tracks.subtitleId,
-    });
+    };
     currentPresentation.maxHeight = item.id;
     updateControlLabels();
-    returnControl = 'quality';
+    pendingControlAfterLoad = {
+      control: 'quality',
+      title: currentPresentation.title,
+      expiresAt: Date.now() + 15000,
+    };
+    closeOptionsAndRestoreFocus('quality');
+    sendReceiverMessage(request);
+    return;
   }
   if (returnControl) {
-    hideOptions();
-    showPause(true);
-    setControlsFocus('actions', CONTROL_ORDER.indexOf(returnControl));
+    closeOptionsAndRestoreFocus(returnControl);
     return;
   }
   renderOptions();
@@ -1476,6 +1609,7 @@ function sendTrackCatalog() {
     const audioTracks = audioTrackCatalog.map(toTrackPayload);
     const subtitleTracks = subtitleTrackCatalog.map(toTrackPayload);
     const activeTracks = activeTrackSelection();
+    updateControlAvailability();
     sendReceiverMessage({
       type: 'tracks',
       audio: audioTracks,
@@ -1544,13 +1678,13 @@ function moveMenuSelection(direction) {
 }
 
 function focusedControlName() {
-  return CONTROL_ORDER[controlSelection] || 'play';
+  const selected = CONTROL_ORDER[controlSelection] || 'play';
+  return controlElementFor(selected)?.hidden ? 'play' : selected;
 }
 
 function showOptionsForControl(control) {
   if (control === 'audio' || control === 'subtitles' || control === 'quality') {
-    showOptions(control);
-    return true;
+    return showOptions(control);
   }
   return false;
 }
@@ -1682,8 +1816,7 @@ function handleReceiverKey(event) {
     if (menuFocusArea === 'close') {
       if (enter || back || left) {
         suppressBackKeyUp = back;
-        hideOptions();
-        showPause(true);
+        closeOptionsAndRestoreFocus();
       } else if (up || down) {
         menuFocusArea = 'list';
         if (up) {
@@ -1701,8 +1834,7 @@ function handleReceiverKey(event) {
       applySelectedOption();
     } else if (back || left) {
       suppressBackKeyUp = back;
-      hideOptions();
-      showPause(true);
+      closeOptionsAndRestoreFocus();
     }
     return;
   }
@@ -1738,13 +1870,17 @@ function handleReceiverKey(event) {
 
   if (left || right) {
     const direction = left ? -1 : 1;
-    controlSelection = (
-      controlSelection + direction + CONTROL_ORDER.length
-    ) % CONTROL_ORDER.length;
-    setControlsFocus('actions', controlSelection);
+    const available = availableControlNames();
+    const currentName = focusedControlName();
+    const currentIndex = Math.max(0, available.indexOf(currentName));
+    const nextName = available[
+      (currentIndex + direction + available.length) % available.length];
+    setControlsFocus('actions', CONTROL_ORDER.indexOf(nextName));
     showPause(true);
   } else if (up) {
-    setControlsFocus('timeline');
+    if (!pauseTimelineElement?.hidden) {
+      setControlsFocus('timeline');
+    }
     showPause(true);
   } else if (down) {
     if (!showOptionsForControl(focusedControlName())) {
@@ -1785,7 +1921,14 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   const customData = media?.customData || loadRequest.customData || {};
   playbackStopped = false;
   currentPresentation = presentationFor(media, customData);
+  if (pendingControlAfterLoad
+      && pendingControlAfterLoad.title !== currentPresentation.title) {
+    pendingControlAfterLoad = null;
+  }
+  audioTrackCatalog = [];
+  subtitleTrackCatalog = [];
   resetPresentationLayers();
+  updateControlAvailability();
   hideIdle();
   hideTransition();
   loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl, {
@@ -1924,6 +2067,16 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideReceiverStatus();
   hideTransition();
   sendTrackCatalog();
+  if (pendingControlAfterLoad
+      && pendingControlAfterLoad.title === currentPresentation?.title
+      && Date.now() <= pendingControlAfterLoad.expiresAt) {
+    const returnControl = pendingControlAfterLoad.control;
+    pendingControlAfterLoad = null;
+    showPause(true);
+    setControlsFocus('actions', CONTROL_ORDER.indexOf(returnControl));
+  } else {
+    pendingControlAfterLoad = null;
+  }
 });
 
 playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, event => {

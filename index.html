@@ -421,6 +421,12 @@
         gap: 16px;
       }
 
+      #receiver-pause-timeline[hidden],
+      .receiver-control[hidden],
+      #receiver-setting-controls[hidden] {
+        display: none !important;
+      }
+
       #receiver-pause-progress {
         position: relative;
         width: 100%;
@@ -471,6 +477,15 @@
         justify-content: space-between;
         gap: clamp(28px, 3vw, 58px);
         margin-top: clamp(18px, 2.5vh, 28px);
+      }
+
+      #receiver-pause.live-controls #receiver-pause-actions,
+      #receiver-pause.transport-only #receiver-pause-actions {
+        justify-content: center;
+      }
+
+      #receiver-pause.live-controls #receiver-pause-actions {
+        margin-top: 0;
       }
 
       .receiver-control-group {
@@ -599,18 +614,22 @@
         left: 26px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
+        justify-content: center;
         min-height: 38px;
       }
 
       #receiver-options-title {
+        width: 100%;
         margin: 0;
         color: #f7fafb;
         font: 650 18px/1.2 'Inter', Arial, sans-serif;
         letter-spacing: 0;
+        text-align: center;
       }
 
       #receiver-options-close {
+        position: absolute;
+        right: 0;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -732,10 +751,10 @@
         width: 208px;
         height: 117px;
         overflow: hidden;
-        border: 2px solid rgba(255, 255, 255, 0.86);
+        border: 0;
         border-radius: 4px;
-        background: #071015;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.38);
+        background: #000;
+        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.52);
       }
 
       #receiver-seek-frame[hidden] {
@@ -746,6 +765,7 @@
         position: absolute;
         display: none;
         max-width: none;
+        background: #000;
         transform-origin: top left;
       }
 
@@ -754,7 +774,7 @@
         margin-top: 8px;
         padding: 6px 10px;
         border-radius: 4px;
-        background: #000;
+        background: rgba(28, 30, 32, 0.78);
         color: #fff;
         font: 650 15px/1.2 'Inter', Arial, sans-serif;
         text-align: center;
@@ -849,7 +869,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-23"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-24"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
