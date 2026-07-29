@@ -72,6 +72,7 @@ let thumbnailSprite = null;
 let thumbnailRenderReported = false;
 let thumbnailRenderKey = '';
 let controlsTimer = null;
+let controlsGeneration = 0;
 let menuSection = 'audio';
 let menuSelection = 0;
 let menuFocusArea = 'list';
@@ -788,6 +789,23 @@ function hidePause() {
   hideSeekPreview();
 }
 
+function ensureReceiverKeyFocus() {
+  try {
+    window.focus();
+    if (document.body) {
+      document.body.tabIndex = -1;
+      document.body.focus({preventScroll: true});
+    }
+  } catch (_) {
+    // Some embedded Cast browsers only support the legacy focus signature.
+    try {
+      document.body?.focus();
+    } catch (_) {
+      // The capture-phase window listener still remains the fallback.
+    }
+  }
+}
+
 function controlsAreVisible() {
   return Boolean(pauseElement?.classList.contains('visible'));
 }
@@ -893,8 +911,12 @@ function cacheTimelineBounds() {
 
 function scheduleControlsHide(delay = 2800) {
   controlsTimer = clearTimer(controlsTimer);
+  const generation = controlsGeneration;
   controlsTimer = setTimeout(() => {
     controlsTimer = null;
+    if (generation !== controlsGeneration) {
+      return;
+    }
     const state = playerManager.getPlayerState();
     if (state === cast.framework.messages.PlayerState.PAUSED) {
       return;
@@ -983,6 +1005,7 @@ function showPause(autoHide = false) {
   if (!currentPresentation || playbackHasError) {
     return;
   }
+  ensureReceiverKeyFocus();
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);
     setSubtitlesLifted(false);
@@ -2440,6 +2463,8 @@ window.addEventListener('resize', () => {
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
+  controlsGeneration += 1;
+  ensureReceiverKeyFocus();
   playbackStopped = false;
   playbackEnded = false;
   playbackPaused = loadRequest.autoplay === false;
@@ -2595,6 +2620,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
 
 playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPLETE, () => {
   playbackHasError = false;
+  ensureReceiverKeyFocus();
   scheduleTrackSelectionRestore();
   if (subtitleStyleDirty) {
     applySubtitleStyle(false);
@@ -2656,6 +2682,7 @@ function handlePlaybackPause() {
 }
 
 function handlePlaybackPlaying() {
+  ensureReceiverKeyFocus();
   playbackPaused = false;
   playbackStopped = false;
   playbackEnded = false;
