@@ -95,6 +95,8 @@ let subtitleStyleApplyToken = 0;
 let trackRestoreTimer = null;
 let trackRestoreToken = 0;
 let nativeOverlayObserver = null;
+let nativeOverlayAttributeObserver = null;
+let nativeOverlayObservedElement = null;
 let subtitleUiObservers = [];
 let subtitleUiObservedRoots = new WeakSet();
 let controlsFocusArea = 'timeline';
@@ -126,13 +128,36 @@ function suppressNativePlayerOverlay() {
     return;
   }
 
+  if (nativeOverlayObservedElement !== nativeOverlay) {
+    nativeOverlayAttributeObserver?.disconnect();
+    nativeOverlayObservedElement = nativeOverlay;
+    nativeOverlayAttributeObserver = new MutationObserver(() => {
+      suppressNativePlayerOverlay();
+    });
+    nativeOverlayAttributeObserver.observe(nativeOverlay, {
+      attributes: true,
+      attributeFilter: ['style', 'class', 'aria-hidden'],
+    });
+  }
+
   // Keep CAF's overlay mounted because it participates in the receiver state
   // machine. Making only its pixels transparent avoids duplicate metadata,
   // progress and loading UI without touching the video or subtitle surfaces.
-  nativeOverlay.style.setProperty('opacity', '0', 'important');
-  nativeOverlay.style.setProperty('visibility', 'hidden', 'important');
-  nativeOverlay.style.setProperty('pointer-events', 'none', 'important');
-  nativeOverlay.setAttribute('aria-hidden', 'true');
+  if (nativeOverlay.style.getPropertyValue('opacity') !== '0'
+      || nativeOverlay.style.getPropertyPriority('opacity') !== 'important') {
+    nativeOverlay.style.setProperty('opacity', '0', 'important');
+  }
+  if (nativeOverlay.style.getPropertyValue('visibility') !== 'hidden'
+      || nativeOverlay.style.getPropertyPriority('visibility') !== 'important') {
+    nativeOverlay.style.setProperty('visibility', 'hidden', 'important');
+  }
+  if (nativeOverlay.style.getPropertyValue('pointer-events') !== 'none'
+      || nativeOverlay.style.getPropertyPriority('pointer-events') !== 'important') {
+    nativeOverlay.style.setProperty('pointer-events', 'none', 'important');
+  }
+  if (nativeOverlay.getAttribute('aria-hidden') !== 'true') {
+    nativeOverlay.setAttribute('aria-hidden', 'true');
+  }
 
   const overlayShadowRoot = nativeOverlay.shadowRoot;
   if (overlayShadowRoot && !overlayShadowRoot.getElementById('sweet-overlay-visibility')) {
@@ -2315,6 +2340,11 @@ function handleReceiverKey(event) {
     return;
   }
 
+  // Some built-in Cast implementations restore CAF's native controls when a
+  // remote key is pressed. Re-apply suppression before our own controls render.
+  suppressNativePlayerOverlay();
+  requestAnimationFrame(suppressNativePlayerOverlay);
+
   if (back && !isOptionsVisible() && !controlsAreVisible()) {
     return;
   }
@@ -2788,6 +2818,9 @@ options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
+// The receiver supplies its own TV controls. Remove CAF's default button slots
+// so touch-enabled and built-in Cast devices do not draw a second control row.
+cast.framework.ui.Controls.getInstance().clearDefaultSlotAssignments();
 context.start(options);
 
 installNativePlayerOverlaySuppression();
