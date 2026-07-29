@@ -6,6 +6,7 @@ const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
 const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
+const CONTENT_SWITCH_TERMINAL_GUARD_MS = 4000;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
 const statusElement = document.getElementById('receiver-status');
@@ -75,6 +76,7 @@ let menuFocusArea = 'list';
 let menuReturnControl = 'audio';
 let pendingControlAfterLoad = null;
 let showControlsOnNextPlayback = false;
+let contentSwitchTerminalGuardUntil = 0;
 let audioTrackCatalog = [];
 let subtitleTrackCatalog = [];
 let pendingSeek = null;
@@ -1364,6 +1366,13 @@ function isReplacementLoadActive() {
     && Date.now() <= pendingControlAfterLoad.expiresAt);
 }
 
+function isContentSwitchTerminalEvent() {
+  return Boolean(
+    currentPresentation
+    && contentSwitchTerminalGuardUntil > 0
+    && Date.now() <= contentSwitchTerminalGuardUntil);
+}
+
 function activeTrackSelection() {
   try {
     const audioId = playerManager.getAudioTracksManager().getActiveId();
@@ -1825,6 +1834,7 @@ function showIdle() {
 function enterStoppedState() {
   playbackStopped = true;
   playbackEnded = false;
+  contentSwitchTerminalGuardUntil = 0;
   pendingControlAfterLoad = null;
   currentPresentation = null;
   hideLoader();
@@ -2379,11 +2389,24 @@ window.addEventListener('resize', () => {
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
+  const previousContentKey = currentPresentation?.contentKey || '';
   playbackStopped = false;
   playbackEnded = false;
   playbackPaused = loadRequest.autoplay === false;
   showControlsOnNextPlayback = true;
   currentPresentation = presentationFor(media, customData);
+  const switchingContent = Boolean(
+    previousContentKey
+    && previousContentKey !== currentPresentation.contentKey);
+  contentSwitchTerminalGuardUntil = switchingContent
+    ? Date.now() + CONTENT_SWITCH_TERMINAL_GUARD_MS
+    : 0;
+  controlsFocusArea = 'actions';
+  controlSelection = CONTROL_ORDER.indexOf('play');
+  menuSection = 'audio';
+  menuSelection = 0;
+  menuFocusArea = 'list';
+  menuReturnControl = 'audio';
   if (pendingControlAfterLoad
       && pendingControlAfterLoad.contentKey !== currentPresentation.contentKey) {
     pendingControlAfterLoad = null;
@@ -2541,7 +2564,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
 });
 
 function handleMediaFinished(event) {
-  if (isReplacementLoadActive()) {
+  if (isReplacementLoadActive() || isContentSwitchTerminalEvent()) {
     return;
   }
   const endedReason = event.endedReason;
@@ -2555,7 +2578,7 @@ function handleMediaFinished(event) {
 }
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_STOP, () => {
-  if (isReplacementLoadActive()) {
+  if (isReplacementLoadActive() || isContentSwitchTerminalEvent()) {
     return;
   }
   enterStoppedState();

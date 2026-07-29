@@ -630,10 +630,10 @@
 
       #receiver-options-close {
         position: absolute;
-        top: 0;
-        left: -70px;
-        width: 38px;
-        height: 38px;
+        top: 24px;
+        left: -56px;
+        width: 42px;
+        height: 42px;
         border: 2px solid transparent;
         border-radius: 50%;
         background: rgba(0, 0, 0, 0.28);
@@ -668,7 +668,7 @@
       #receiver-options-close.focused {
         border-color: #20c5c9;
         background: rgba(32, 197, 201, 0.22);
-        transform: scale(1.08);
+        transform: scale(1.04);
       }
 
       #receiver-options-list {
@@ -922,7 +922,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-32"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-33"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -1002,9 +1002,9 @@
       </div>
     </div>
     <div id="receiver-options" aria-hidden="true">
+      <div id="receiver-options-close" role="button" aria-label="Close">&times;</div>
       <div id="receiver-options-header">
         <h2 id="receiver-options-title"></h2>
-        <div id="receiver-options-close" role="button" aria-label="Close">&times;</div>
       </div>
       <div id="receiver-options-list"></div>
       <div id="receiver-options-footer"></div>
