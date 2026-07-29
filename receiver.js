@@ -58,6 +58,7 @@ let transitionTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
 let playbackStopped = false;
+let playbackEnded = false;
 let currentPresentation = null;
 let thumbnailCues = [];
 let thumbnailRequestId = 0;
@@ -532,6 +533,33 @@ function normalizedMaxHeight(value) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : -1;
 }
 
+function sameTrackId(left, right) {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  if (Number.isFinite(leftNumber) && Number.isFinite(rightNumber)) {
+    return leftNumber === rightNumber;
+  }
+  return String(left) === String(right);
+}
+
+function normalizedQualityOptions(options) {
+  const seen = new Set();
+  const normalized = [];
+  for (const option of Array.isArray(options) ? options : []) {
+    const maxHeight = normalizedMaxHeight(option?.maxHeight);
+    if (seen.has(maxHeight)) {
+      continue;
+    }
+    seen.add(maxHeight);
+    normalized.push({
+      maxHeight,
+      label: option?.label
+        || (maxHeight > 0 ? `${maxHeight}p` : translate('auto')),
+    });
+  }
+  return normalized;
+}
+
 function presentationFor(media, customData = {}) {
   const metadata = media?.metadata || {};
   const title = metadata.title || customData.title || '';
@@ -542,13 +570,7 @@ function presentationFor(media, customData = {}) {
   const previousTracks = previousPresentation
     ? activeTrackSelection()
     : {audioId: -1, subtitleId: -1};
-  const requestedQualityOptions = Array.isArray(customData.qualityOptions)
-    ? customData.qualityOptions
-        .map(option => ({
-          maxHeight: normalizedMaxHeight(option?.maxHeight),
-          label: option?.label || translate('auto'),
-        }))
-    : [];
+  const requestedQualityOptions = normalizedQualityOptions(customData.qualityOptions);
   const qualityOptions = requestedQualityOptions.length > 0
     ? requestedQualityOptions
     : (previousPresentation?.qualityOptions || []).map(option => ({...option}));
@@ -942,7 +964,7 @@ function scheduleSubtitleStyleRestore(expectedIds) {
     try {
       const manager = playerManager.getTextTracksManager();
       const enabledIds = manager.getActiveIds();
-      if (activeIds.every(id => enabledIds.includes(id))) {
+      if (activeIds.every(id => enabledIds.some(enabledId => sameTrackId(id, enabledId)))) {
         applySubtitleStyle(false);
       }
     } catch (error) {
@@ -975,11 +997,12 @@ function setActiveSubtitleIds(ids) {
 
 function optionItems(section = menuSection) {
   if (section === 'audio') {
+    const activeId = playerManager.getAudioTracksManager().getActiveId();
     return audioTrackCatalog.map(track => ({
       id: track.trackId,
       kind: 'audio-track',
       label: track.name || track.language || String(track.trackId),
-      selected: track.trackId === playerManager.getAudioTracksManager().getActiveId(),
+      selected: sameTrackId(track.trackId, activeId),
     }));
   }
   if (section === 'subtitles') {
@@ -995,7 +1018,7 @@ function optionItems(section = menuSection) {
         id: track.trackId,
         kind: 'subtitle-track',
         label: track.name || track.language || String(track.trackId),
-        selected: activeIds.includes(track.trackId),
+        selected: activeIds.some(activeId => sameTrackId(activeId, track.trackId)),
       })),
       {
         id: 'subtitle-styling',
@@ -1197,17 +1220,24 @@ function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = tru
 }
 
 function activeTrackSelection() {
-  const audioId = playerManager.getAudioTracksManager().getActiveId();
-  const subtitleIds = playerManager.getTextTracksManager().getActiveIds();
-  return {
-    audioId: Number.isFinite(Number(audioId)) ? Number(audioId) : -1,
-    subtitleId: subtitleIds.length > 0 ? Number(subtitleIds[0]) : -1,
-  };
+  try {
+    const audioId = playerManager.getAudioTracksManager().getActiveId();
+    const subtitleIds = playerManager.getTextTracksManager().getActiveIds();
+    return {
+      audioId: Number.isFinite(Number(audioId)) ? Number(audioId) : -1,
+      subtitleId: Array.isArray(subtitleIds) && subtitleIds.length > 0
+        ? Number(subtitleIds[0])
+        : -1,
+    };
+  } catch (_) {
+    return {audioId: -1, subtitleId: -1};
+  }
 }
 
 function notifyTrackSelection() {
   sendReceiverMessage({
     type: 'track-selection',
+    contentKey: currentPresentation?.contentKey || '',
     ...activeTrackSelection(),
   });
 }
@@ -1239,6 +1269,7 @@ function applySelectedOption() {
     const tracks = activeTrackSelection();
     const request = {
       type: 'quality-request',
+      contentKey: currentPresentation?.contentKey || '',
       maxHeight: item.id,
       positionMs: Math.round(playerManager.getCurrentTimeSec() * 1000),
       audioId: tracks.audioId,
@@ -1292,6 +1323,8 @@ function showEnd() {
   hideTransition();
   hidePause();
   hideSeekPreview();
+  hideIdle();
+  hideError();
   if (endArtworkElement) {
     endArtworkElement.hidden = !currentPresentation?.artworkUrl;
     if (currentPresentation?.artworkUrl) {
@@ -1310,7 +1343,7 @@ function showEnd() {
 function parseVttTime(value) {
   const parts = value.trim().split(':').map(Number);
   if (parts.some(part => !Number.isFinite(part))) {
-    return 0;
+    return Number.NaN;
   }
   if (parts.length === 3) {
     return (parts[0] * 3600) + (parts[1] * 60) + parts[2];
@@ -1318,7 +1351,7 @@ function parseVttTime(value) {
   if (parts.length === 2) {
     return (parts[0] * 60) + parts[1];
   }
-  return parts[0] || 0;
+  return parts.length === 1 ? parts[0] : Number.NaN;
 }
 
 function parseThumbnailVtt(text, playlistUrl) {
@@ -1331,6 +1364,11 @@ function parseThumbnailVtt(text, playlistUrl) {
       continue;
     }
     const [startText, endText] = lines[timeLineIndex].split('-->').map(value => value.trim().split(/\s+/)[0]);
+    const start = parseVttTime(startText);
+    const end = parseVttTime(endText);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+      continue;
+    }
     const target = lines[timeLineIndex + 1];
     const cropMatch = target.match(/#xywh=(\d+),(\d+),(\d+),(\d+)/i);
     let imageUrl = target.split('#')[0];
@@ -1340,13 +1378,13 @@ function parseThumbnailVtt(text, playlistUrl) {
       continue;
     }
     cues.push({
-      start: parseVttTime(startText),
-      end: parseVttTime(endText),
+      start,
+      end,
       imageUrl: secureMediaUrl(imageUrl),
       crop: cropMatch ? cropMatch.slice(1).map(Number) : null,
     });
   }
-  return cues;
+  return cues.sort((left, right) => left.start - right.start);
 }
 
 async function loadThumbnailCues(playlistUrl, sprite = null) {
@@ -1370,6 +1408,9 @@ async function loadThumbnailCues(playlistUrl, sprite = null) {
   try {
     const response = await fetch(playlistUrl, {credentials: 'omit'});
     if (!response.ok) {
+      if (requestId !== thumbnailRequestId) {
+        return;
+      }
       sendReceiverMessage({
         type: 'thumbnail-status',
         state: 'playlist-error',
@@ -1391,6 +1432,9 @@ async function loadThumbnailCues(playlistUrl, sprite = null) {
       });
     }
   } catch (_) {
+    if (requestId !== thumbnailRequestId) {
+      return;
+    }
     sendReceiverMessage({
       type: 'thumbnail-status',
       state: 'playlist-error',
@@ -1417,9 +1461,6 @@ function thumbnailCueAt(positionSeconds) {
       cue = candidate;
       break;
     }
-  }
-  if (!cue && low < thumbnailCues.length && positionSeconds < thumbnailCues[low].end) {
-    cue = thumbnailCues[low];
   }
   if (cue || !thumbnailSprite) {
     return cue;
@@ -1622,6 +1663,7 @@ function showIdle() {
 
 function enterStoppedState() {
   playbackStopped = true;
+  playbackEnded = false;
   pendingControlAfterLoad = null;
   currentPresentation = null;
   hideLoader();
@@ -1690,8 +1732,16 @@ function sendTrackCatalog() {
     const subtitleTracks = subtitleTrackCatalog.map(toTrackPayload);
     const activeTracks = activeTrackSelection();
     updateControlAvailability();
+    updateControlLabels();
+    if (isOptionsVisible()
+        && (menuSection === 'audio'
+          || menuSection === 'subtitles'
+          || menuSection === 'subtitle-style')) {
+      renderOptions();
+    }
     sendReceiverMessage({
       type: 'tracks',
+      contentKey: currentPresentation?.contentKey || '',
       audio: audioTracks,
       subtitles: subtitleTracks,
       audioId: activeTracks.audioId,
@@ -1725,15 +1775,51 @@ function restoreRequestedTrackSelection() {
 }
 
 function applyTrackSelection(message) {
-  const audioId = Number(message.audioId);
-  const subtitleId = Number(message.subtitleId);
-  const audioManager = playerManager.getAudioTracksManager();
-  if (Number.isFinite(audioId) && audioId >= 0) {
-    audioManager.setActiveById(audioId);
+  if (hasOwn(message, 'audioId')) {
+    const audioId = Number(message.audioId);
+    if (Number.isFinite(audioId) && audioId >= 0) {
+      playerManager.getAudioTracksManager().setActiveById(audioId);
+    }
   }
-  setActiveSubtitleIds(
-    Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
+  if (hasOwn(message, 'subtitleId')) {
+    const subtitleId = Number(message.subtitleId);
+    setActiveSubtitleIds(
+      Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
+  }
+  updateControlAvailability();
+  updateControlLabels();
+  if (isOptionsVisible()) {
+    renderOptions();
+  }
   notifyTrackSelection();
+}
+
+function applyQualityCatalog(message) {
+  if (!currentPresentation) {
+    return;
+  }
+  const contentKey = String(message?.contentKey || '');
+  if (contentKey && contentKey !== currentPresentation.contentKey) {
+    return;
+  }
+  const qualityOptions = normalizedQualityOptions(message?.options);
+  if (qualityOptions.length === 0) {
+    return;
+  }
+  currentPresentation.qualityOptions = qualityOptions;
+  if (hasOwn(message, 'maxHeight')) {
+    currentPresentation.maxHeight = normalizedMaxHeight(message.maxHeight);
+  }
+  updateControlAvailability();
+  updateControlLabels();
+  if (isOptionsVisible() && menuSection === 'quality') {
+    renderOptions();
+  }
+}
+
+function messageMatchesCurrentContent(message) {
+  const contentKey = String(message?.contentKey || '');
+  return !contentKey || contentKey === currentPresentation?.contentKey;
 }
 
 function isOptionsVisible() {
@@ -2010,6 +2096,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
   playbackStopped = false;
+  playbackEnded = false;
   currentPresentation = presentationFor(media, customData);
   if (pendingControlAfterLoad
       && pendingControlAfterLoad.contentKey !== currentPresentation.contentKey) {
@@ -2044,6 +2131,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
   playbackStopped = false;
+  playbackEnded = false;
   hideIdle();
   hideError();
   hideEnd();
@@ -2135,11 +2223,13 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
   playbackHasError = true;
+  playbackEnded = false;
   pendingControlAfterLoad = null;
   hideIdle();
   showError(code);
   sendReceiverMessage({
     type: 'receiver-error',
+    contentKey: currentPresentation?.contentKey || '',
     code: String(code),
     details,
   });
@@ -2171,15 +2261,16 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   }
 });
 
-playerManager.addEventListener(cast.framework.events.EventType.MEDIA_FINISHED, event => {
+function handleMediaFinished(event) {
   const endedReason = event.endedReason;
   const endedNaturally = endedReason === cast.framework.events.EndedReason.END_OF_STREAM;
   if (endedNaturally && currentPresentation?.isMovie && !playbackHasError) {
+    playbackEnded = true;
     showEnd();
     return;
   }
   enterStoppedState();
-});
+}
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_STOP, () => {
   enterStoppedState();
@@ -2193,8 +2284,12 @@ playerManager.addEventListener(cast.framework.events.EventType.BUFFERING, event 
   }
 });
 
-playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
+function handlePlaybackPause() {
   hideLoader();
+  if (playbackEnded) {
+    hidePause();
+    return;
+  }
   if (playbackStopped
       || playerManager.getPlayerState() === cast.framework.messages.PlayerState.IDLE) {
     hidePause();
@@ -2202,10 +2297,11 @@ playerManager.addEventListener(cast.framework.events.EventType.PAUSE, () => {
     return;
   }
   showPause();
-});
+}
 
-playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
+function handlePlaybackPlaying() {
   playbackStopped = false;
+  playbackEnded = false;
   hideLoader();
   if (isOptionsVisible()) {
     setLayerVisible(pauseElement, false);
@@ -2215,7 +2311,14 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYING, () => {
     hidePause();
   }
   hideEnd();
-});
+}
+
+playerManager.addEventListener(
+    cast.framework.events.EventType.MEDIA_FINISHED, handleMediaFinished);
+playerManager.addEventListener(
+    cast.framework.events.EventType.PAUSE, handlePlaybackPause);
+playerManager.addEventListener(
+    cast.framework.events.EventType.PLAYING, handlePlaybackPlaying);
 
 if (cast.framework.events.EventType.TIME_UPDATE) {
   playerManager.addEventListener(cast.framework.events.EventType.TIME_UPDATE, () => {
@@ -2248,8 +2351,12 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
     const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (message?.type === 'request-tracks') {
       sendTrackCatalog();
+    } else if (!messageMatchesCurrentContent(message)) {
+      return;
     } else if (message?.type === 'select-tracks') {
       applyTrackSelection(message);
+    } else if (message?.type === 'quality-catalog') {
+      applyQualityCatalog(message);
     } else if (message?.type === 'seek-preview') {
       if (message.visible === false) {
         hideSeekPreview();
