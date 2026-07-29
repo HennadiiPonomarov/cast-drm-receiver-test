@@ -512,10 +512,31 @@ function hasOwn(object, key) {
   return Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
 }
 
+function contentKeyFor(media, customData = {}) {
+  const explicitKey = customData.contentKey
+    || customData.url
+    || media?.contentId
+    || media?.contentUrl;
+  if (explicitKey) {
+    return String(explicitKey);
+  }
+  const metadata = media?.metadata || {};
+  return [
+    metadata.title || customData.title || '',
+    metadata.subtitle || customData.subtitle || '',
+  ].join('|');
+}
+
+function normalizedMaxHeight(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : -1;
+}
+
 function presentationFor(media, customData = {}) {
   const metadata = media?.metadata || {};
   const title = metadata.title || customData.title || '';
-  const previousPresentation = currentPresentation?.title === title
+  const contentKey = contentKeyFor(media, customData);
+  const previousPresentation = currentPresentation?.contentKey === contentKey
     ? currentPresentation
     : null;
   const previousTracks = previousPresentation
@@ -524,20 +545,18 @@ function presentationFor(media, customData = {}) {
   const requestedQualityOptions = Array.isArray(customData.qualityOptions)
     ? customData.qualityOptions
         .map(option => ({
-          maxHeight: option?.maxHeight !== null && Number.isFinite(Number(option?.maxHeight))
-            ? Number(option.maxHeight)
-            : -1,
+          maxHeight: normalizedMaxHeight(option?.maxHeight),
           label: option?.label || translate('auto'),
         }))
     : [];
   const qualityOptions = requestedQualityOptions.length > 0
     ? requestedQualityOptions
     : (previousPresentation?.qualityOptions || []).map(option => ({...option}));
-  const maxHeight = customData.maxHeight !== null && customData.maxHeight !== undefined
-    && Number.isFinite(Number(customData.maxHeight))
-    ? Number(customData.maxHeight)
+  const maxHeight = hasOwn(customData, 'maxHeight')
+    ? normalizedMaxHeight(customData.maxHeight)
     : (previousPresentation?.maxHeight ?? -1);
   return {
+    contentKey,
     title,
     subtitle: metadata.subtitle || customData.subtitle || previousPresentation?.subtitle || '',
     artworkUrl: metadataImage(metadata)
@@ -1229,7 +1248,7 @@ function applySelectedOption() {
     updateControlLabels();
     pendingControlAfterLoad = {
       control: 'quality',
-      title: currentPresentation.title,
+      contentKey: currentPresentation.contentKey,
       expiresAt: Date.now() + 15000,
     };
     closeOptionsAndRestoreFocus('quality');
@@ -1603,6 +1622,7 @@ function showIdle() {
 
 function enterStoppedState() {
   playbackStopped = true;
+  pendingControlAfterLoad = null;
   currentPresentation = null;
   hideLoader();
   resetPresentationLayers();
@@ -1992,7 +2012,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   playbackStopped = false;
   currentPresentation = presentationFor(media, customData);
   if (pendingControlAfterLoad
-      && pendingControlAfterLoad.title !== currentPresentation.title) {
+      && pendingControlAfterLoad.contentKey !== currentPresentation.contentKey) {
     pendingControlAfterLoad = null;
   }
   audioTrackCatalog = [];
@@ -2058,12 +2078,13 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     };
   }
 
-  if (Number.isFinite(drm.maxHeight)) {
+  const maxHeight = normalizedMaxHeight(drm.maxHeight);
+  if (maxHeight > 0) {
     playbackConfig.shakaConfig = {
       ...(playbackConfig.shakaConfig || {}),
       restrictions: {
         ...((playbackConfig.shakaConfig || {}).restrictions || {}),
-        maxHeight: drm.maxHeight,
+        maxHeight,
       },
     };
   }
@@ -2114,6 +2135,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   const details = getErrorDetails(event);
   console.error('[SWEET Receiver] Playback error', event);
   playbackHasError = true;
+  pendingControlAfterLoad = null;
   hideIdle();
   showError(code);
   sendReceiverMessage({
@@ -2138,7 +2160,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideTransition();
   sendTrackCatalog();
   if (pendingControlAfterLoad
-      && pendingControlAfterLoad.title === currentPresentation?.title
+      && pendingControlAfterLoad.contentKey === currentPresentation?.contentKey
       && Date.now() <= pendingControlAfterLoad.expiresAt) {
     const returnControl = pendingControlAfterLoad.control;
     pendingControlAfterLoad = null;
