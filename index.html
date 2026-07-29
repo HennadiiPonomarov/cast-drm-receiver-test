@@ -415,10 +415,44 @@
       }
 
       #receiver-pause-timeline {
+        position: relative;
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
         align-items: center;
         gap: 16px;
+      }
+
+      #receiver-pause-live-badge {
+        position: absolute;
+        bottom: calc(100% + 10px);
+        left: 0;
+        display: none;
+        min-height: 22px;
+        padding: 0 9px;
+        border-radius: 4px;
+        background: #e3262e;
+        color: #fff;
+        font: 700 11px/22px 'Inter', Arial, sans-serif;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      #receiver-pause-timeline.live {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+
+      #receiver-pause-timeline.live #receiver-pause-live-badge {
+        display: inline-flex;
+        align-items: center;
+      }
+
+      #receiver-pause-timeline.live #receiver-pause-duration {
+        display: none;
+      }
+
+      #receiver-pause-timeline.live #receiver-pause-progress-fill,
+      #receiver-pause-timeline.live #receiver-pause-progress::after {
+        display: none;
       }
 
       #receiver-pause-timeline[hidden],
@@ -479,13 +513,17 @@
         margin-top: clamp(18px, 2.5vh, 28px);
       }
 
-      #receiver-pause.live-controls #receiver-pause-actions,
       #receiver-pause.transport-only #receiver-pause-actions {
         justify-content: center;
       }
 
       #receiver-pause.live-controls #receiver-pause-actions {
-        margin-top: 0;
+        justify-content: space-between;
+        margin-top: clamp(18px, 2.5vh, 28px);
+      }
+
+      #receiver-pause.live-controls.transport-only #receiver-pause-actions {
+        justify-content: center;
       }
 
       .receiver-control-group {
@@ -922,7 +960,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-34"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-35"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -963,6 +1001,7 @@
       <img id="receiver-pause-artwork" alt="">
       <div id="receiver-pause-content">
         <div id="receiver-pause-timeline">
+          <div id="receiver-pause-live-badge"></div>
           <div id="receiver-pause-time"></div>
           <div id="receiver-pause-progress">
             <div id="receiver-pause-progress-fill"></div>

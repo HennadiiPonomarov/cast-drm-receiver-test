@@ -29,6 +29,7 @@ const pauseArtworkElement = document.getElementById('receiver-pause-artwork');
 const pauseProgressElement = document.getElementById('receiver-pause-progress-fill');
 const pauseProgressTrackElement = document.getElementById('receiver-pause-progress');
 const pauseTimelineElement = document.getElementById('receiver-pause-timeline');
+const pauseLiveBadgeElement = document.getElementById('receiver-pause-live-badge');
 const pauseTimeElement = document.getElementById('receiver-pause-time');
 const pauseDurationElement = document.getElementById('receiver-pause-duration');
 const playStateIconElement = document.getElementById('receiver-play-state-icon');
@@ -580,6 +581,14 @@ function formatTime(totalSeconds) {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
+function formatClockTime(date = new Date()) {
+  return [
+    date.getHours(),
+    date.getMinutes(),
+    date.getSeconds(),
+  ].map(value => String(value).padStart(2, '0')).join(':');
+}
+
 function formatSeekTime(totalSeconds) {
   const value = Math.max(0, Math.floor(Number(totalSeconds) || 0));
   const hours = Math.floor(value / 3600);
@@ -803,8 +812,15 @@ function availableControlNames() {
   return CONTROL_ORDER.filter(name => !controlElementFor(name)?.hidden);
 }
 
+function timelineIsFocusable() {
+  return Boolean(
+      pauseTimelineElement
+      && !pauseTimelineElement.hidden
+      && !pauseTimelineElement.classList.contains('live'));
+}
+
 function setControlsFocus(area, selection = controlSelection) {
-  const timelineAvailable = Boolean(pauseTimelineElement && !pauseTimelineElement.hidden);
+  const timelineAvailable = timelineIsFocusable();
   controlsFocusArea = area === 'actions' || !timelineAvailable ? 'actions' : 'timeline';
   if (controlsFocusArea === 'actions') {
     const requested = CONTROL_ORDER[
@@ -820,16 +836,18 @@ function setControlsFocus(area, selection = controlSelection) {
 
 function updateControlAvailability() {
   const duration = playerManager.getDurationSec();
-  const seekable = !currentPresentation?.isLive
+  const isLive = Boolean(currentPresentation?.isLive);
+  const seekable = !isLive
     && Number.isFinite(duration)
     && duration > 0;
+  const qualityCount = (currentPresentation?.qualityOptions || []).length;
   const availability = {
     rewind: seekable,
     play: true,
     forward: seekable,
     audio: audioTrackCatalog.length > 1,
     subtitles: subtitleTrackCatalog.length > 0,
-    quality: (currentPresentation?.qualityOptions || []).length > 1,
+    quality: qualityCount > 1 || (isLive && qualityCount > 0),
   };
   CONTROL_ORDER.forEach(name => {
     const element = controlElementFor(name);
@@ -838,7 +856,11 @@ function updateControlAvailability() {
     }
   });
   if (pauseTimelineElement) {
-    pauseTimelineElement.hidden = !seekable;
+    pauseTimelineElement.hidden = !seekable && !isLive;
+    pauseTimelineElement.classList.toggle('live', isLive);
+  }
+  if (pauseLiveBadgeElement) {
+    pauseLiveBadgeElement.textContent = isLive ? translate('live') : '';
   }
   const settingControls = document.getElementById('receiver-setting-controls');
   if (settingControls) {
@@ -846,9 +868,9 @@ function updateControlAvailability() {
       && !availability.subtitles
       && !availability.quality;
   }
-  pauseElement?.classList.toggle('live-controls', !seekable);
+  pauseElement?.classList.toggle('live-controls', isLive);
   pauseElement?.classList.toggle('transport-only', Boolean(settingControls?.hidden));
-  if (controlsFocusArea === 'timeline' && !seekable) {
+  if (controlsFocusArea === 'timeline' && !timelineIsFocusable()) {
     setControlsFocus('actions', CONTROL_ORDER.indexOf('play'));
   } else if (controlsFocusArea === 'actions') {
     const selectedControl = controlElementFor(CONTROL_ORDER[controlSelection]);
@@ -891,6 +913,7 @@ function scheduleControlsHide(delay = 2800) {
 }
 
 function updatePauseProgress(positionOverride = null, durationOverride = null) {
+  const isLive = Boolean(currentPresentation?.isLive);
   const hasPositionOverride = positionOverride !== null
     && Number.isFinite(Number(positionOverride));
   const actualPosition = hasPositionOverride
@@ -909,7 +932,9 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
   const duration = durationOverride !== null && Number.isFinite(Number(durationOverride))
     ? Number(durationOverride)
     : playerManager.getDurationSec();
-  const boundedDuration = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  const boundedDuration = !isLive && Number.isFinite(duration) && duration > 0
+    ? duration
+    : 0;
   const percentage = boundedDuration > 0
     ? Math.max(0, Math.min(100, (position / boundedDuration) * 100))
     : 0;
@@ -919,9 +944,11 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
   if (pauseProgressTrackElement) {
     pauseProgressTrackElement.style.setProperty('--progress', `${percentage}%`);
   }
-  pauseTimelineElement?.classList.toggle('scrubbing', isScrubbing);
+  pauseTimelineElement?.classList.toggle('scrubbing', !isLive && isScrubbing);
   if (pauseTimeElement) {
-    pauseTimeElement.textContent = boundedDuration > 0 ? formatSeekTime(position) : presentationBadge();
+    pauseTimeElement.textContent = isLive
+      ? formatClockTime()
+      : (boundedDuration > 0 ? formatSeekTime(position) : presentationBadge());
   }
   if (pauseDurationElement) {
     pauseDurationElement.textContent = boundedDuration > 0 ? formatSeekTime(boundedDuration) : '';
@@ -996,7 +1023,7 @@ function showPause(autoHide = false) {
   }
   if (!wasVisible) {
     setControlsFocus(
-      pauseTimelineElement?.hidden ? 'actions' : 'timeline',
+      timelineIsFocusable() ? 'timeline' : 'actions',
       CONTROL_ORDER.indexOf('play'));
   } else {
     renderControlsFocus();
@@ -1294,7 +1321,8 @@ function hasOptionsForSection(section) {
     return subtitleTrackCatalog.length > 0;
   }
   if (section === 'quality') {
-    return (currentPresentation?.qualityOptions || []).length > 1;
+    const qualityCount = (currentPresentation?.qualityOptions || []).length;
+    return qualityCount > 1 || (currentPresentation?.isLive && qualityCount > 0);
   }
   return false;
 }
@@ -2326,7 +2354,7 @@ function handleReceiverKey(event) {
     }
     if (left || right) {
       showPause(false);
-      if (!pauseTimelineElement?.hidden) {
+      if (timelineIsFocusable()) {
         setControlsFocus('timeline');
         previewRemoteSeek(left ? -1 : 1);
       } else {
@@ -2371,7 +2399,7 @@ function handleReceiverKey(event) {
     setControlsFocus('actions', CONTROL_ORDER.indexOf(nextName));
     showPause(true);
   } else if (up) {
-    if (!pauseTimelineElement?.hidden) {
+    if (timelineIsFocusable()) {
       setControlsFocus('timeline');
     }
     showPause(true);
