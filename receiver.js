@@ -1531,8 +1531,8 @@ function activeTrackSelection() {
   }
 }
 
-function notifyTrackSelection() {
-  const selection = activeTrackSelection();
+function notifyTrackSelection(requestedSelection = null) {
+  const selection = requestedSelection || activeTrackSelection();
   if (currentPresentation) {
     currentPresentation.selectedAudioId = selection.audioId;
     currentPresentation.selectedSubtitleId = selection.subtitleId;
@@ -1555,14 +1555,20 @@ function applySelectedOption() {
     if (currentPresentation) {
       currentPresentation.selectedAudioId = Number(item.id);
     }
-    setTimeout(notifyTrackSelection, 0);
+    setTimeout(() => notifyTrackSelection({
+      audioId: Number(item.id),
+      subtitleId: currentPresentation?.selectedSubtitleId ?? -1,
+    }), 0);
     returnControl = 'audio';
   } else if (item.kind === 'subtitle-track') {
     setActiveSubtitleIds(item.id < 0 ? [] : [item.id]);
     if (currentPresentation) {
       currentPresentation.selectedSubtitleId = item.id < 0 ? -1 : Number(item.id);
     }
-    setTimeout(notifyTrackSelection, 0);
+    setTimeout(() => notifyTrackSelection({
+      audioId: currentPresentation?.selectedAudioId ?? -1,
+      subtitleId: item.id < 0 ? -1 : Number(item.id),
+    }), 0);
     returnControl = 'subtitles';
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
@@ -2168,7 +2174,10 @@ function applyTrackSelection(message) {
   if (isOptionsVisible()) {
     renderOptions();
   }
-  notifyTrackSelection();
+  notifyTrackSelection({
+    audioId: currentPresentation?.selectedAudioId ?? -1,
+    subtitleId: currentPresentation?.selectedSubtitleId ?? -1,
+  });
 }
 
 function applyQualityCatalog(message) {
