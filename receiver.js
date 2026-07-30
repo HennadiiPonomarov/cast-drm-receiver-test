@@ -105,6 +105,13 @@ let suppressBackKeyUp = false;
 let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
+let subtitleBackgroundColor = '#00000001';
+let subtitleWindowColor = '#00000001';
+let subtitleWindowType =
+  cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS;
+let subtitleEdgeType =
+  cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
+let subtitleEdgeColor = '#000000FF';
 let subtitleStyleDirty = false;
 let playbackPaused = false;
 let subtitlesLifted = false;
@@ -1082,24 +1089,64 @@ function normalizedRgba(value) {
   return String(value || '').trim().toUpperCase();
 }
 
+function captureSubtitleStyle(style, markDirty = true) {
+  if (!style) {
+    return;
+  }
+  if (Number.isFinite(Number(style.fontScale))) {
+    subtitleFontScale = Number(style.fontScale);
+  }
+  if (style.foregroundColor) {
+    subtitleForegroundColor = normalizedRgba(style.foregroundColor);
+  }
+  if (style.backgroundColor) {
+    subtitleBackgroundColor = normalizedRgba(style.backgroundColor);
+  }
+  if (style.windowColor) {
+    subtitleWindowColor = normalizedRgba(style.windowColor);
+  }
+  if (style.windowType !== undefined && style.windowType !== null) {
+    subtitleWindowType = style.windowType;
+  }
+  if (style.edgeType !== undefined && style.edgeType !== null) {
+    subtitleEdgeType = style.edgeType;
+  }
+  if (style.edgeColor) {
+    subtitleEdgeColor = normalizedRgba(style.edgeColor);
+  }
+  if (markDirty) {
+    subtitleStyleDirty = true;
+  }
+}
+
 function syncSubtitleStyleState() {
   if (subtitleStyleDirty) {
     return;
   }
   try {
-    const style = playerManager.getTextTracksManager().getTextTracksStyle();
-    if (Number.isFinite(Number(style?.fontScale))) {
-      subtitleFontScale = Number(style.fontScale);
-    }
-    if (style?.foregroundColor) {
-      subtitleForegroundColor = normalizedRgba(style.foregroundColor);
-    }
+    captureSubtitleStyle(
+      playerManager.getTextTracksManager().getTextTracksStyle(),
+      false);
   } catch (error) {
     console.warn('[SWEET Receiver] Subtitle style is not ready', error);
   }
 }
 
-function applySubtitleStyle(markDirty = true) {
+function notifySubtitleStyleApplied() {
+  sendReceiverMessage({
+    type: 'subtitle-style-applied',
+    contentKey: currentPresentation?.contentKey || '',
+    fontScale: subtitleFontScale,
+    foregroundColor: subtitleForegroundColor,
+    backgroundColor: subtitleBackgroundColor,
+    windowColor: subtitleWindowColor,
+    windowType: subtitleWindowType,
+    edgeType: subtitleEdgeType,
+    edgeColor: subtitleEdgeColor,
+  });
+}
+
+function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
   if (markDirty) {
     // Keep the choice even when no text track is active yet. Some CAF
     // receivers reject styling until a subtitle track has been enabled.
@@ -1114,10 +1161,32 @@ function applySubtitleStyle(markDirty = true) {
     }
     style.fontScale = subtitleFontScale;
     style.foregroundColor = subtitleForegroundColor;
+    style.backgroundColor = subtitleBackgroundColor;
+    style.windowColor = subtitleWindowColor;
+    style.windowType = subtitleWindowType;
+    style.windowRoundedCornerRadius = 8;
+    style.edgeType = subtitleEdgeType;
+    style.edgeColor = subtitleEdgeColor;
     manager.setTextTrackStyle(style);
+    if (notifySender) {
+      notifySubtitleStyleApplied();
+    }
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
+}
+
+function applySenderSubtitleStyle(message) {
+  captureSubtitleStyle(message, true);
+  applySubtitleStyle(false, false);
+  let activeIds = [];
+  try {
+    activeIds = playerManager.getTextTracksManager().getActiveIds();
+  } catch (error) {
+    console.warn('[SWEET Receiver] Subtitle tracks are not ready', error);
+  }
+  scheduleSubtitleStyleRestore(activeIds);
+  notifySubtitleStyleApplied();
 }
 
 function cancelSubtitleStyleRestore() {
@@ -2536,6 +2605,21 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   return loadRequest;
 });
 
+playerManager.setMessageInterceptor(
+  cast.framework.messages.MessageType.EDIT_TRACKS_INFO,
+  request => {
+    if (request?.textTrackStyle) {
+      captureSubtitleStyle(request.textTrackStyle, true);
+      setTimeout(() => {
+        applySubtitleStyle(false, false);
+        scheduleSubtitleStyleRestore(
+          playerManager.getTextTracksManager().getActiveIds());
+        notifySubtitleStyleApplied();
+      }, 0);
+    }
+    return request;
+  });
+
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
   playbackStopped = false;
@@ -2783,11 +2867,16 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
   try {
     const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (message?.type === 'request-tracks') {
+      if (subtitleStyleDirty) {
+        notifySubtitleStyleApplied();
+      }
       sendTrackCatalog();
     } else if (!messageMatchesCurrentContent(message)) {
       return;
     } else if (message?.type === 'select-tracks') {
       applyTrackSelection(message);
+    } else if (message?.type === 'subtitle-style') {
+      applySenderSubtitleStyle(message);
     } else if (message?.type === 'quality-catalog') {
       applyQualityCatalog(message);
     } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
