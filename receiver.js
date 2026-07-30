@@ -180,6 +180,46 @@ function visitOpenRoots(root, visitor) {
   });
 }
 
+function subtitleTextShadow() {
+  const edgeColor = subtitleEdgeColor || '#000000FF';
+  if (subtitleEdgeType === cast.framework.messages.TextTrackEdgeType.NONE) {
+    return 'none';
+  }
+  if (subtitleEdgeType === cast.framework.messages.TextTrackEdgeType.OUTLINE) {
+    return [
+      `-0.055em -0.055em 0 ${edgeColor}`,
+      `0.055em -0.055em 0 ${edgeColor}`,
+      `-0.055em 0.055em 0 ${edgeColor}`,
+      `0.055em 0.055em 0 ${edgeColor}`,
+    ].join(', ');
+  }
+  if (subtitleEdgeType === cast.framework.messages.TextTrackEdgeType.RAISED) {
+    return `-0.055em -0.055em 0 ${edgeColor}`;
+  }
+  if (subtitleEdgeType === cast.framework.messages.TextTrackEdgeType.DEPRESSED) {
+    return `0.055em 0.055em 0 ${edgeColor}`;
+  }
+  return `0.075em 0.075em 0.11em ${edgeColor}`;
+}
+
+function styleSubtitleTextElement(element) {
+  if (!(element instanceof HTMLElement)) {
+    return;
+  }
+  element.style.setProperty('color', subtitleForegroundColor, 'important');
+  element.style.setProperty('text-shadow', subtitleTextShadow(), 'important');
+  element.style.setProperty(
+    '-webkit-text-fill-color',
+    subtitleForegroundColor,
+    'important');
+  const hasText = Array.from(element.childNodes)
+    .some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+  element.style.setProperty(
+    'background-color',
+    hasText ? subtitleBackgroundColor : 'transparent',
+    'important');
+}
+
 function styleSubtitleContainer(container) {
   const transform = subtitlesLifted ? 'translateY(-19vh)' : 'translateY(0)';
   if (container.style.getPropertyValue('transform') !== transform) {
@@ -194,6 +234,8 @@ function styleSubtitleContainer(container) {
   if (!container.style.getPropertyValue('will-change')) {
     container.style.setProperty('will-change', 'transform', 'important');
   }
+  styleSubtitleTextElement(container);
+  container.querySelectorAll('*').forEach(styleSubtitleTextElement);
 }
 
 function styleSubtitleContainersInRoot(root) {
@@ -217,6 +259,13 @@ function observeSubtitleUiRoot(root) {
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
       mutation.addedNodes.forEach(node => {
+        const element = node.nodeType === Node.ELEMENT_NODE
+          ? node
+          : node.parentElement;
+        const activeContainer = element?.closest?.('.shaka-text-container');
+        if (activeContainer) {
+          styleSubtitleContainer(activeContainer);
+        }
         if (node.nodeType !== Node.ELEMENT_NODE
             && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) {
           return;
@@ -1147,6 +1196,7 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
     style.edgeType = subtitleEdgeType;
     style.edgeColor = subtitleEdgeColor;
     manager.setTextTrackStyle(style);
+    applySubtitleViewportPosition();
     if (notifySender) {
       notifySubtitleStyleApplied();
     }
