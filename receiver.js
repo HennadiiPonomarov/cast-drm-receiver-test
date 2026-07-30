@@ -2962,9 +2962,6 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
   try {
     const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (message?.type === 'request-tracks') {
-      if (currentPresentation?.contentKey) {
-        notifySubtitleStyleApplied();
-      }
       sendTrackCatalog();
     } else if (!messageMatchesCurrentContent(message)) {
       return;
