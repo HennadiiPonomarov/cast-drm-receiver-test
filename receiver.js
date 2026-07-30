@@ -8,7 +8,6 @@ const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
 const PLAYING_TERMINAL_GUARD_MS = 1000;
-const USE_UI_TEXT_DISPLAYER = false;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
 const statusElement = document.getElementById('receiver-status');
@@ -106,16 +105,10 @@ let suppressBackKeyUp = false;
 let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
-let subtitleBackgroundColor = '#00000000';
-let subtitleWindowColor = '#00000000';
-let subtitleWindowType = cast.framework.messages.TextTrackWindowType.NONE;
-let subtitleEdgeType = cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
-let subtitleEdgeColor = '#000000FF';
 let subtitleStyleDirty = false;
 let playbackPaused = false;
 let subtitlesLifted = false;
 let hasSystemMediaControlsOverlay = false;
-let receiverControlsMode = 'pending';
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
@@ -207,10 +200,6 @@ function visitOpenRoots(root, visitor) {
 
 function styleSubtitleContainer(container) {
   const transform = subtitlesLifted ? 'translateY(-19vh)' : 'translateY(0)';
-  container.style.setProperty('z-index', '17', 'important');
-  container.style.setProperty('opacity', '1', 'important');
-  container.style.setProperty('visibility', 'visible', 'important');
-  container.style.setProperty('pointer-events', 'none', 'important');
   if (container.style.getPropertyValue('transform') !== transform) {
     container.style.setProperty('transform', transform, 'important');
   }
@@ -233,9 +222,6 @@ function styleSubtitleContainersInRoot(root) {
 }
 
 function applySubtitleViewportPosition() {
-  if (!USE_UI_TEXT_DISPLAYER) {
-    return;
-  }
   visitOpenRoots(document, styleSubtitleContainersInRoot);
 }
 
@@ -265,15 +251,12 @@ function observeSubtitleUiRoot(root) {
 }
 
 function setSubtitlesLifted(lifted) {
-  subtitlesLifted = Boolean(lifted && receiverControlsMode === 'custom');
+  subtitlesLifted = Boolean(lifted);
   document.documentElement.classList.toggle('subtitles-lifted', subtitlesLifted);
   applySubtitleViewportPosition();
 }
 
 function installSubtitleUiPositioning() {
-  if (!USE_UI_TEXT_DISPLAYER) {
-    return;
-  }
   applySubtitleViewportPosition();
   subtitleUiObservers.forEach(observer => observer.disconnect());
   subtitleUiObservers = [];
@@ -357,10 +340,6 @@ const translations = {
     tryAgain: 'Próbálja újra, vagy válasszon másik videót.',
     paused: 'Szüneteltetve', finished: 'A lejátszás véget ért', code: 'Kód',
     audio: 'Hang', subtitles: 'Feliratok', quality: 'Minőség', auto: 'Automatikus', off: 'Kikapcsolva',
-    subtitleStyling: 'Feliratok megjelenése',
-    subtitleSize: 'Felirat mérete', subtitleColor: 'Felirat színe',
-    small: 'Kicsi', medium: 'Közepes', large: 'Nagy',
-    white: 'Fehér', yellow: 'Sárga', cyan: 'Türkiz',
     live: 'Élő', recording: 'Felvétel', movie: 'Film',
   },
   bg: {
@@ -370,10 +349,6 @@ const translations = {
     tryAgain: 'Опитайте отново или изберете друго видео.',
     paused: 'Пауза', finished: 'Възпроизвеждането приключи', code: 'Код',
     audio: 'Аудио', subtitles: 'Субтитри', quality: 'Качество', auto: 'Автоматично', off: 'Изключени',
-    subtitleStyling: 'Оформление на субтитрите',
-    subtitleSize: 'Размер на субтитрите', subtitleColor: 'Цвят на субтитрите',
-    small: 'Малък', medium: 'Среден', large: 'Голям',
-    white: 'Бял', yellow: 'Жълт', cyan: 'Тюркоазен',
     live: 'На живо', recording: 'Запис', movie: 'Филм',
   },
   pl: {
@@ -383,10 +358,6 @@ const translations = {
     tryAgain: 'Spróbuj ponownie lub wybierz inny film.',
     paused: 'Wstrzymano', finished: 'Odtwarzanie zakończone', code: 'Kod',
     audio: 'Dźwięk', subtitles: 'Napisy', quality: 'Jakość', auto: 'Auto', off: 'Wyłączone',
-    subtitleStyling: 'Wygląd napisów',
-    subtitleSize: 'Rozmiar napisów', subtitleColor: 'Kolor napisów',
-    small: 'Małe', medium: 'Średnie', large: 'Duże',
-    white: 'Biały', yellow: 'Żółty', cyan: 'Turkusowy',
     live: 'Na żywo', recording: 'Nagranie', movie: 'Film',
   },
   ro: {
@@ -396,10 +367,6 @@ const translations = {
     tryAgain: 'Încercați din nou sau alegeți alt videoclip.',
     paused: 'În pauză', finished: 'Redarea s-a încheiat', code: 'Cod',
     audio: 'Audio', subtitles: 'Subtitrări', quality: 'Calitate', auto: 'Automat', off: 'Dezactivate',
-    subtitleStyling: 'Aspect subtitrări',
-    subtitleSize: 'Dimensiune subtitrări', subtitleColor: 'Culoare subtitrări',
-    small: 'Mici', medium: 'Medii', large: 'Mari',
-    white: 'Alb', yellow: 'Galben', cyan: 'Turcoaz',
     live: 'În direct', recording: 'Înregistrare', movie: 'Film',
   },
   az: {
@@ -409,10 +376,6 @@ const translations = {
     tryAgain: 'Yenidən cəhd edin və ya başqa video seçin.',
     paused: 'Dayandırılıb', finished: 'Oxutma bitdi', code: 'Kod',
     audio: 'Səs', subtitles: 'Subtitrlər', quality: 'Keyfiyyət', auto: 'Avtomatik', off: 'Söndürülüb',
-    subtitleStyling: 'Subtitr görünüşü',
-    subtitleSize: 'Subtitr ölçüsü', subtitleColor: 'Subtitr rəngi',
-    small: 'Kiçik', medium: 'Orta', large: 'Böyük',
-    white: 'Ağ', yellow: 'Sarı', cyan: 'Firuzəyi',
     live: 'Canlı', recording: 'Yazı', movie: 'Film',
   },
   sq: {
@@ -422,10 +385,6 @@ const translations = {
     tryAgain: 'Provo përsëri ose zgjidh një video tjetër.',
     paused: 'Në pauzë', finished: 'Riprodhimi përfundoi', code: 'Kodi',
     audio: 'Audio', subtitles: 'Titrat', quality: 'Cilësia', auto: 'Automatike', off: 'Fikur',
-    subtitleStyling: 'Pamja e titrave',
-    subtitleSize: 'Madhësia e titrave', subtitleColor: 'Ngjyra e titrave',
-    small: 'Të vogla', medium: 'Mesatare', large: 'Të mëdha',
-    white: 'E bardhë', yellow: 'E verdhë', cyan: 'Bruz',
     live: 'Drejtpërdrejt', recording: 'Regjistrim', movie: 'Film',
   },
   lv: {
@@ -435,10 +394,6 @@ const translations = {
     tryAgain: 'Mēģiniet vēlreiz vai izvēlieties citu video.',
     paused: 'Pauzēts', finished: 'Atskaņošana pabeigta', code: 'Kods',
     audio: 'Audio', subtitles: 'Subtitri', quality: 'Kvalitāte', auto: 'Automātiski', off: 'Izslēgti',
-    subtitleStyling: 'Subtitru noformējums',
-    subtitleSize: 'Subtitru izmērs', subtitleColor: 'Subtitru krāsa',
-    small: 'Mazs', medium: 'Vidējs', large: 'Liels',
-    white: 'Balta', yellow: 'Dzeltena', cyan: 'Tirkīza',
     live: 'Tiešraide', recording: 'Ieraksts', movie: 'Filma',
   },
   et: {
@@ -448,10 +403,6 @@ const translations = {
     tryAgain: 'Proovige uuesti või valige mõni muu video.',
     paused: 'Peatatud', finished: 'Esitus lõppes', code: 'Kood',
     audio: 'Heli', subtitles: 'Subtiitrid', quality: 'Kvaliteet', auto: 'Automaatne', off: 'Väljas',
-    subtitleStyling: 'Subtiitrite kujundus',
-    subtitleSize: 'Subtiitrite suurus', subtitleColor: 'Subtiitrite värv',
-    small: 'Väike', medium: 'Keskmine', large: 'Suur',
-    white: 'Valge', yellow: 'Kollane', cyan: 'Türkiissinine',
     live: 'Otse', recording: 'Salvestis', movie: 'Film',
   },
   el: {
@@ -461,10 +412,6 @@ const translations = {
     tryAgain: 'Δοκιμάστε ξανά ή επιλέξτε άλλο βίντεο.',
     paused: 'Σε παύση', finished: 'Η αναπαραγωγή ολοκληρώθηκε', code: 'Κωδικός',
     audio: 'Ήχος', subtitles: 'Υπότιτλοι', quality: 'Ποιότητα', auto: 'Αυτόματο', off: 'Ανενεργοί',
-    subtitleStyling: 'Εμφάνιση υποτίτλων',
-    subtitleSize: 'Μέγεθος υποτίτλων', subtitleColor: 'Χρώμα υποτίτλων',
-    small: 'Μικρό', medium: 'Μεσαίο', large: 'Μεγάλο',
-    white: 'Λευκό', yellow: 'Κίτρινο', cyan: 'Τυρκουάζ',
     live: 'Ζωντανά', recording: 'Εγγραφή', movie: 'Ταινία',
   },
   lt: {
@@ -474,10 +421,6 @@ const translations = {
     tryAgain: 'Bandykite dar kartą arba pasirinkite kitą vaizdo įrašą.',
     paused: 'Pristabdyta', finished: 'Atkūrimas baigtas', code: 'Kodas',
     audio: 'Garsas', subtitles: 'Subtitrai', quality: 'Kokybė', auto: 'Automatiškai', off: 'Išjungti',
-    subtitleStyling: 'Subtitrų išvaizda',
-    subtitleSize: 'Subtitrų dydis', subtitleColor: 'Subtitrų spalva',
-    small: 'Mažas', medium: 'Vidutinis', large: 'Didelis',
-    white: 'Balta', yellow: 'Geltona', cyan: 'Turkio',
     live: 'Tiesiogiai', recording: 'Įrašas', movie: 'Filmas',
   },
   sr: {
@@ -487,10 +430,6 @@ const translations = {
     tryAgain: 'Pokušajte ponovo ili izaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kod',
     audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvalitet', auto: 'Automatski', off: 'Isključeni',
-    subtitleStyling: 'Izgled titlova',
-    subtitleSize: 'Veličina titlova', subtitleColor: 'Boja titlova',
-    small: 'Mali', medium: 'Srednji', large: 'Veliki',
-    white: 'Bela', yellow: 'Žuta', cyan: 'Tirkizna',
     live: 'Uživo', recording: 'Snimak', movie: 'Film',
   },
   mk: {
@@ -500,10 +439,6 @@ const translations = {
     tryAgain: 'Обидете се повторно или изберете друго видео.',
     paused: 'Паузирано', finished: 'Репродукцијата заврши', code: 'Код',
     audio: 'Аудио', subtitles: 'Преводи', quality: 'Квалитет', auto: 'Автоматски', off: 'Исклучени',
-    subtitleStyling: 'Изглед на преводите',
-    subtitleSize: 'Големина на преводите', subtitleColor: 'Боја на преводите',
-    small: 'Мали', medium: 'Средни', large: 'Големи',
-    white: 'Бела', yellow: 'Жолта', cyan: 'Тиркизна',
     live: 'Во живо', recording: 'Снимка', movie: 'Филм',
   },
   bs: {
@@ -513,10 +448,6 @@ const translations = {
     tryAgain: 'Pokušajte ponovo ili odaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kod',
     audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvalitet', auto: 'Automatski', off: 'Isključeni',
-    subtitleStyling: 'Izgled titlova',
-    subtitleSize: 'Veličina titlova', subtitleColor: 'Boja titlova',
-    small: 'Mali', medium: 'Srednji', large: 'Veliki',
-    white: 'Bijela', yellow: 'Žuta', cyan: 'Tirkizna',
     live: 'Uživo', recording: 'Snimak', movie: 'Film',
   },
   sl: {
@@ -526,10 +457,6 @@ const translations = {
     tryAgain: 'Poskusite znova ali izberite drug videoposnetek.',
     paused: 'Začasno ustavljeno', finished: 'Predvajanje je končano', code: 'Koda',
     audio: 'Zvok', subtitles: 'Podnapisi', quality: 'Kakovost', auto: 'Samodejno', off: 'Izklopljeni',
-    subtitleStyling: 'Videz podnapisov',
-    subtitleSize: 'Velikost podnapisov', subtitleColor: 'Barva podnapisov',
-    small: 'Majhni', medium: 'Srednji', large: 'Veliki',
-    white: 'Bela', yellow: 'Rumena', cyan: 'Turkizna',
     live: 'V živo', recording: 'Posnetek', movie: 'Film',
   },
   hr: {
@@ -539,10 +466,6 @@ const translations = {
     tryAgain: 'Pokušajte ponovno ili odaberite drugi video.',
     paused: 'Pauzirano', finished: 'Reprodukcija je završena', code: 'Kôd',
     audio: 'Zvuk', subtitles: 'Titlovi', quality: 'Kvaliteta', auto: 'Automatski', off: 'Isključeni',
-    subtitleStyling: 'Izgled titlova',
-    subtitleSize: 'Veličina titlova', subtitleColor: 'Boja titlova',
-    small: 'Mali', medium: 'Srednji', large: 'Veliki',
-    white: 'Bijela', yellow: 'Žuta', cyan: 'Tirkizna',
     live: 'Uživo', recording: 'Snimka', movie: 'Film',
   },
 };
@@ -1100,11 +1023,8 @@ function updateControlLabels() {
 }
 
 function showPause(autoHide = false) {
-  if (receiverControlsMode !== 'custom'
-      || !currentPresentation
-      || playbackHasError) {
-    hidePause();
-    return false;
+  if (!currentPresentation || playbackHasError) {
+    return;
   }
   ensureReceiverKeyFocus();
   if (isOptionsVisible()) {
@@ -1156,41 +1076,10 @@ function showPause(autoHide = false) {
   if (autoHide) {
     scheduleControlsHide();
   }
-  return true;
 }
 
 function normalizedRgba(value) {
   return String(value || '').trim().toUpperCase();
-}
-
-function captureSubtitleStyle(style, markDirty = true) {
-  if (!style) {
-    return;
-  }
-  if (Number.isFinite(Number(style.fontScale))) {
-    subtitleFontScale = Number(style.fontScale);
-  }
-  if (style.foregroundColor) {
-    subtitleForegroundColor = normalizedRgba(style.foregroundColor);
-  }
-  if (style.backgroundColor) {
-    subtitleBackgroundColor = normalizedRgba(style.backgroundColor);
-  }
-  if (style.windowColor) {
-    subtitleWindowColor = normalizedRgba(style.windowColor);
-  }
-  if (style.windowType !== undefined && style.windowType !== null) {
-    subtitleWindowType = style.windowType;
-  }
-  if (style.edgeType !== undefined && style.edgeType !== null) {
-    subtitleEdgeType = style.edgeType;
-  }
-  if (style.edgeColor) {
-    subtitleEdgeColor = normalizedRgba(style.edgeColor);
-  }
-  if (markDirty) {
-    subtitleStyleDirty = true;
-  }
 }
 
 function syncSubtitleStyleState() {
@@ -1198,9 +1087,13 @@ function syncSubtitleStyleState() {
     return;
   }
   try {
-    captureSubtitleStyle(
-      playerManager.getTextTracksManager().getTextTracksStyle(),
-      false);
+    const style = playerManager.getTextTracksManager().getTextTracksStyle();
+    if (Number.isFinite(Number(style?.fontScale))) {
+      subtitleFontScale = Number(style.fontScale);
+    }
+    if (style?.foregroundColor) {
+      subtitleForegroundColor = normalizedRgba(style.foregroundColor);
+    }
   } catch (error) {
     console.warn('[SWEET Receiver] Subtitle style is not ready', error);
   }
@@ -1221,32 +1114,10 @@ function applySubtitleStyle(markDirty = true) {
     }
     style.fontScale = subtitleFontScale;
     style.foregroundColor = subtitleForegroundColor;
-    style.backgroundColor = subtitleBackgroundColor;
-    style.windowColor = subtitleWindowColor;
-    style.edgeType = subtitleEdgeType;
-    style.edgeColor = subtitleEdgeColor;
     manager.setTextTrackStyle(style);
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
-}
-
-function applySenderSubtitleStyle(message) {
-  captureSubtitleStyle(message, true);
-  applySubtitleStyle(false);
-  const activeIds = playerManager.getTextTracksManager().getActiveIds();
-  scheduleSubtitleStyleRestore(activeIds);
-  sendReceiverMessage({
-    type: 'subtitle-style-applied',
-    contentKey: currentPresentation?.contentKey || '',
-    fontScale: subtitleFontScale,
-    foregroundColor: subtitleForegroundColor,
-    backgroundColor: subtitleBackgroundColor,
-    windowColor: subtitleWindowColor,
-    windowType: subtitleWindowType,
-    edgeType: subtitleEdgeType,
-    edgeColor: subtitleEdgeColor,
-  });
 }
 
 function cancelSubtitleStyleRestore() {
@@ -1457,7 +1328,7 @@ function renderOptions() {
 }
 
 function showOptions(section = menuSection) {
-  if (receiverControlsMode !== 'custom' || !hasOptionsForSection(section)) {
+  if (!hasOptionsForSection(section)) {
     return false;
   }
   menuSection = section;
@@ -1528,11 +1399,6 @@ function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = tru
 }
 
 function restorePendingControlAfterLoad(force = false) {
-  if (receiverControlsMode === 'system') {
-    pendingControlAfterLoad = null;
-    showControlsOnNextPlayback = false;
-    return false;
-  }
   if (!pendingControlAfterLoad || !currentPresentation) {
     return false;
   }
@@ -1565,13 +1431,6 @@ function restorePendingControlAfterLoad(force = false) {
 }
 
 function showInitialControlsIfReady(force = false) {
-  if (receiverControlsMode === 'system') {
-    showControlsOnNextPlayback = false;
-    return false;
-  }
-  if (receiverControlsMode !== 'custom') {
-    return false;
-  }
   if (!showControlsOnNextPlayback
       || pendingControlAfterLoad
       || !currentPresentation
@@ -1957,10 +1816,6 @@ function renderThumbnailCue(cue) {
 }
 
 function showSeekPreview(positionSeconds, autoHide = false, durationOverride = null) {
-  if (receiverControlsMode !== 'custom') {
-    hideSeekPreview();
-    return;
-  }
   const position = Math.max(0, Number(positionSeconds) || 0);
   previewSeekPosition = position;
   seekPreviewTimer = clearTimer(seekPreviewTimer);
@@ -2436,11 +2291,6 @@ function consumeRemoteKey(event) {
 }
 
 function handleReceiverKey(event) {
-  // Touch-enabled and built-in Cast implementations own their system media
-  // overlay. Do not consume remote keys or draw a competing receiver UI.
-  if (receiverControlsMode !== 'custom') {
-    return;
-  }
   const key = event.key || '';
   const eventCode = event.code || event.keyIdentifier || '';
   const code = Number(event.keyCode || event.which || 0);
@@ -2612,9 +2462,6 @@ function handleReceiverKey(event) {
 }
 
 function handleReceiverKeyUp(event) {
-  if (receiverControlsMode !== 'custom') {
-    return;
-  }
   if (suppressBackKeyUp && isBackKeyEvent(event)) {
     consumeRemoteKey(event);
     suppressBackKeyUp = false;
@@ -2689,15 +2536,6 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   return loadRequest;
 });
 
-playerManager.setMessageInterceptor(
-  cast.framework.messages.MessageType.EDIT_TRACKS_INFO,
-  request => {
-    if (request?.textTrackStyle) {
-      captureSubtitleStyle(request.textTrackStyle, true);
-    }
-    return request;
-  });
-
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
   playbackStopped = false;
@@ -2714,10 +2552,7 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackConfig.protectionSystem = undefined;
   playbackConfig.licenseRequestHandler = undefined;
   playbackConfig.shakaConfig = undefined;
-  // Keep text rendering on the receiver's native video surface. Shaka's
-  // DOM-based UITextDisplayer can be misaligned or fully hidden on older Cast
-  // implementations when the receiver supplies its own controls overlay.
-  playbackConfig.enableUITextDisplayer = USE_UI_TEXT_DISPLAYER;
+  playbackConfig.enableUITextDisplayer = true;
 
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
@@ -2869,7 +2704,7 @@ function handlePlaybackPause() {
     showIdle();
     return;
   }
-  if (receiverControlsMode !== 'custom') {
+  if (hasSystemMediaControlsOverlay) {
     hidePause();
     return;
   }
@@ -2888,13 +2723,6 @@ function handlePlaybackPlaying() {
   }
   scheduleTrackSelectionRestore();
   hideLoader();
-  if (receiverControlsMode === 'system') {
-    showControlsOnNextPlayback = false;
-    pendingControlAfterLoad = null;
-    hidePause();
-    hideEnd();
-    return;
-  }
   if (restorePendingControlAfterLoad(true)) {
     hideEnd();
     return;
@@ -2960,8 +2788,6 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
       return;
     } else if (message?.type === 'select-tracks') {
       applyTrackSelection(message);
-    } else if (message?.type === 'subtitle-style') {
-      applySenderSubtitleStyle(message);
     } else if (message?.type === 'quality-catalog') {
       applyQualityCatalog(message);
     } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
@@ -2995,37 +2821,20 @@ options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
+// The receiver supplies its own TV controls. Remove CAF's default button slots
+// so touch-enabled and built-in Cast devices do not draw a second control row.
+cast.framework.ui.Controls.getInstance().clearDefaultSlotAssignments();
 context.start(options);
 
 cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()
     .then(hasOverlay => {
       hasSystemMediaControlsOverlay = Boolean(hasOverlay);
-      receiverControlsMode = hasSystemMediaControlsOverlay ? 'system' : 'custom';
-      document.documentElement.dataset.receiverControls = receiverControlsMode;
-      if (hasSystemMediaControlsOverlay) {
-        showControlsOnNextPlayback = false;
-        pendingControlAfterLoad = null;
+      if (hasSystemMediaControlsOverlay && playbackPaused) {
         hidePause();
-        hideOptions();
-        hideSeekPreview();
-        setSubtitlesLifted(false);
-      } else if (currentPresentation && !playbackHasError) {
-        if (playbackPaused) {
-          showPause();
-        } else {
-          showInitialControlsIfReady(true);
-        }
       }
-      sendReceiverMessage({
-        type: 'receiver-controls-mode',
-        mode: receiverControlsMode,
-      });
     })
     .catch(error => {
       console.warn('[SWEET Receiver] Cannot detect system media controls', error);
-      receiverControlsMode = 'custom';
-      document.documentElement.dataset.receiverControls = receiverControlsMode;
-      showInitialControlsIfReady(true);
     });
 
 installNativePlayerOverlaySuppression();
