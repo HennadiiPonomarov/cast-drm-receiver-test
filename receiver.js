@@ -1081,6 +1081,9 @@ function scheduleControlsHide(delay = 2800) {
     if (generation !== controlsGeneration) {
       return;
     }
+    if (isOptionsVisible()) {
+      return;
+    }
     const state = playerManager.getPlayerState();
     if (state === cast.framework.messages.PlayerState.PAUSED) {
       return;
