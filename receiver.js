@@ -181,7 +181,7 @@ function visitOpenRoots(root, visitor) {
 }
 
 function subtitleTextShadow() {
-  const edgeColor = subtitleEdgeColor || '#000000FF';
+  const edgeColor = subtitleCssColor(subtitleEdgeColor || '#000000FF');
   if (subtitleEdgeType === cast.framework.messages.TextTrackEdgeType.NONE) {
     return 'none';
   }
@@ -202,22 +202,46 @@ function subtitleTextShadow() {
   return `0.075em 0.075em 0.11em ${edgeColor}`;
 }
 
+function subtitleCssColor(value) {
+  const color = String(value || '').trim();
+  const match = /^#([0-9a-f]{6})([0-9a-f]{2})$/i.exec(color);
+  if (!match) {
+    return color;
+  }
+  const rgb = match[1];
+  const alpha = Number.parseInt(match[2], 16) / 255;
+  return `rgba(${Number.parseInt(rgb.slice(0, 2), 16)}, `
+    + `${Number.parseInt(rgb.slice(2, 4), 16)}, `
+    + `${Number.parseInt(rgb.slice(4, 6), 16)}, ${alpha.toFixed(3)})`;
+}
+
 function styleSubtitleTextElement(element) {
   if (!(element instanceof HTMLElement)) {
     return;
   }
-  element.style.setProperty('color', subtitleForegroundColor, 'important');
+  const foregroundColor = subtitleCssColor(subtitleForegroundColor);
+  const backgroundColor = subtitleCssColor(subtitleBackgroundColor);
+  element.style.setProperty('color', foregroundColor, 'important');
   element.style.setProperty('text-shadow', subtitleTextShadow(), 'important');
   element.style.setProperty(
     '-webkit-text-fill-color',
-    subtitleForegroundColor,
+    foregroundColor,
     'important');
   const hasText = Array.from(element.childNodes)
     .some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
   element.style.setProperty(
     'background-color',
-    hasText ? subtitleBackgroundColor : 'transparent',
+    hasText ? backgroundColor : 'transparent',
     'important');
+  if (hasText) {
+    const fontSize = Math.max(3.1, Math.min(7.2, 4.4 * subtitleFontScale));
+    element.style.setProperty('font-size', `${fontSize.toFixed(2)}vh`, 'important');
+    element.style.setProperty('line-height', '1.22', 'important');
+    element.style.setProperty(
+      'font-family',
+      'Inter, Arial, sans-serif',
+      'important');
+  }
 }
 
 function styleSubtitleContainer(container) {
@@ -258,6 +282,13 @@ function observeSubtitleUiRoot(root) {
   styleSubtitleContainersInRoot(root);
   const observer = new MutationObserver(mutations => {
     mutations.forEach(mutation => {
+      const changedElement = mutation.target?.nodeType === Node.TEXT_NODE
+        ? mutation.target.parentElement
+        : mutation.target;
+      const changedContainer = changedElement?.closest?.('.shaka-text-container');
+      if (changedContainer) {
+        styleSubtitleContainer(changedContainer);
+      }
       mutation.addedNodes.forEach(node => {
         const element = node.nodeType === Node.ELEMENT_NODE
           ? node
@@ -277,7 +308,7 @@ function observeSubtitleUiRoot(root) {
       });
     });
   });
-  observer.observe(root, {childList: true, subtree: true});
+  observer.observe(root, {childList: true, characterData: true, subtree: true});
   subtitleUiObservers.push(observer);
 }
 
