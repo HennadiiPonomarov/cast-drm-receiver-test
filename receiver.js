@@ -2647,7 +2647,10 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackConfig.protectionSystem = undefined;
   playbackConfig.licenseRequestHandler = undefined;
   playbackConfig.shakaConfig = undefined;
-  playbackConfig.enableUITextDisplayer = true;
+  // Keep text rendering on the receiver's native video surface. Shaka's
+  // DOM-based UITextDisplayer can be misaligned or fully hidden on older Cast
+  // implementations when the receiver supplies its own controls overlay.
+  playbackConfig.enableUITextDisplayer = false;
 
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
