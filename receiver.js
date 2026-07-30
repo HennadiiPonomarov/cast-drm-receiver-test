@@ -10,7 +10,7 @@ const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
 const PLAYING_TERMINAL_GUARD_MS = 1000;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
-const LOCAL_SUBTITLE_SELECTION_LOCK_MS = 2500;
+const LOCAL_SUBTITLE_SELECTION_LOCK_MS = 10000;
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -258,6 +258,33 @@ function subtitleCssColor(value) {
     + `${Number.parseInt(rgb.slice(4, 6), 16)}, ${alpha.toFixed(3)})`;
 }
 
+function subtitleFontSize() {
+  return Math.max(3.1, Math.min(7.2, 4.4 * subtitleFontScale));
+}
+
+function ensureSubtitleOverrideStyle(root) {
+  if (!(root === document || root instanceof ShadowRoot)) {
+    return;
+  }
+  let style = root.getElementById?.('sweet-subtitle-renderer-style');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'sweet-subtitle-renderer-style';
+    (root === document ? document.head : root).appendChild(style);
+  }
+  const foregroundColor = subtitleCssColor(subtitleForegroundColor);
+  style.textContent = [
+    '.shaka-text-container, .shaka-text-container * {',
+    `  color: ${foregroundColor} !important;`,
+    `  -webkit-text-fill-color: ${foregroundColor} !important;`,
+    `  text-shadow: ${subtitleTextShadow()} !important;`,
+    `  font-size: ${subtitleFontSize().toFixed(2)}vh !important;`,
+    '  line-height: 1.22 !important;',
+    '  font-family: Inter, Arial, sans-serif !important;',
+    '}',
+  ].join('\n');
+}
+
 function styleSubtitleTextElement(element) {
   if (!(element instanceof HTMLElement)) {
     return;
@@ -277,8 +304,10 @@ function styleSubtitleTextElement(element) {
     hasText ? backgroundColor : 'transparent',
     'important');
   if (hasText) {
-    const fontSize = Math.max(3.1, Math.min(7.2, 4.4 * subtitleFontScale));
-    element.style.setProperty('font-size', `${fontSize.toFixed(2)}vh`, 'important');
+    element.style.setProperty(
+      'font-size',
+      `${subtitleFontSize().toFixed(2)}vh`,
+      'important');
     element.style.setProperty('line-height', '1.22', 'important');
     element.style.setProperty(
       'font-family',
@@ -306,6 +335,7 @@ function styleSubtitleContainer(container) {
 }
 
 function styleSubtitleContainersInRoot(root) {
+  ensureSubtitleOverrideStyle(root);
   if (root.matches?.('.shaka-text-container')) {
     styleSubtitleContainer(root);
   }
@@ -1411,18 +1441,25 @@ function optionItems(section = menuSection) {
   }
   if (section === 'subtitles') {
     const activeIds = playerManager.getTextTracksManager().getActiveIds();
+    const requestedSubtitleId = Number(currentPresentation?.selectedSubtitleId);
+    const selectedSubtitleIds = activeIds.length > 0
+      ? activeIds
+      : (Number.isFinite(requestedSubtitleId) && requestedSubtitleId >= 0
+        ? [requestedSubtitleId]
+        : []);
     return [
       {
         id: -1,
         kind: 'subtitle-track',
         label: translate('off'),
-        selected: activeIds.length === 0,
+        selected: selectedSubtitleIds.length === 0,
       },
       ...subtitleTrackCatalog.map(track => ({
         id: track.trackId,
         kind: 'subtitle-track',
         label: track.name || track.language || String(track.trackId),
-        selected: activeIds.some(activeId => sameTrackId(activeId, track.trackId)),
+        selected: selectedSubtitleIds
+          .some(activeId => sameTrackId(activeId, track.trackId)),
       })),
       {
         id: 'subtitle-styling',
@@ -1753,6 +1790,7 @@ function applySelectedOption() {
     }
     lockLocalSubtitleSelection(subtitleId);
     setActiveSubtitleIds(subtitleId < 0 ? [] : [subtitleId]);
+    scheduleTrackSelectionRestore();
     setTimeout(() => notifyTrackSelection({
       audioId: currentPresentation?.selectedAudioId ?? -1,
       subtitleId,
@@ -2238,6 +2276,22 @@ function sendTrackCatalog() {
     const audioTracks = audioTrackCatalog.map(toTrackPayload);
     const subtitleTracks = subtitleTrackCatalog.map(toTrackPayload);
     const activeTracks = activeTrackSelection();
+    const requestedAudioId = Number(currentPresentation?.selectedAudioId);
+    const requestedSubtitleId = Number(currentPresentation?.selectedSubtitleId);
+    const reportedAudioId = activeTracks.audioId >= 0
+      ? activeTracks.audioId
+      : (Number.isFinite(requestedAudioId)
+          && audioTrackCatalog.some(
+            track => sameTrackId(track.trackId, requestedAudioId))
+        ? requestedAudioId
+        : -1);
+    const reportedSubtitleId = activeTracks.subtitleId >= 0
+      ? activeTracks.subtitleId
+      : (Number.isFinite(requestedSubtitleId) && requestedSubtitleId >= 0
+          && subtitleTrackCatalog.some(
+            track => sameTrackId(track.trackId, requestedSubtitleId))
+        ? requestedSubtitleId
+        : -1);
     updateControlAvailability();
     updateControlLabels();
     if (isOptionsVisible()
@@ -2251,8 +2305,8 @@ function sendTrackCatalog() {
       contentKey: currentPresentation?.contentKey || '',
       audio: audioTracks,
       subtitles: subtitleTracks,
-      audioId: activeTracks.audioId,
-      subtitleId: activeTracks.subtitleId,
+      audioId: reportedAudioId,
+      subtitleId: reportedSubtitleId,
     });
   } catch (error) {
     console.warn('[SWEET Receiver] Track catalog is not ready', error);
