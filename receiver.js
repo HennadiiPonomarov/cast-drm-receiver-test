@@ -10,6 +10,7 @@ const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
 const PLAYING_TERMINAL_GUARD_MS = 1000;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
+const LOCAL_SUBTITLE_SELECTION_LOCK_MS = 2500;
 const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
@@ -94,6 +95,7 @@ let subtitleStyleApplyTimer = null;
 let subtitleStyleApplyToken = 0;
 let trackRestoreTimer = null;
 let trackRestoreToken = 0;
+let localSubtitleSelectionLock = null;
 let nativeOverlayObserver = null;
 let subtitleUiObservers = [];
 let subtitleUiObservedRoots = new WeakSet();
@@ -116,14 +118,55 @@ let subtitlesLifted = false;
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
-  {value: 0.75, labelKey: 'small'},
-  {value: 1, labelKey: 'medium'},
-  {value: 1.25, labelKey: 'large'},
+  {value: 0.75, labelKey: 'small', sampleClass: 'small'},
+  {value: 1, labelKey: 'medium', sampleClass: 'medium'},
+  {value: 1.25, labelKey: 'large', sampleClass: 'large'},
 ];
-const SUBTITLE_COLOR_OPTIONS = [
-  {value: '#FFFFFFFF', labelKey: 'white'},
-  {value: '#FFF200FF', labelKey: 'yellow'},
-  {value: '#20C5C9FF', labelKey: 'cyan'},
+const SUBTITLE_STYLE_PRESETS = [
+  {
+    id: 'drop-shadow',
+    labelKey: 'dropShadow',
+    sampleClass: 'drop-shadow',
+    foregroundColor: '#FFFFFFFF',
+    backgroundColor: '#00000001',
+    windowColor: '#00000001',
+    windowType: cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS,
+    edgeType: cast.framework.messages.TextTrackEdgeType.DROP_SHADOW,
+    edgeColor: '#000000FF',
+  },
+  {
+    id: 'dark',
+    labelKey: 'dark',
+    sampleClass: 'dark',
+    foregroundColor: '#FFFFFFFF',
+    backgroundColor: '#000000E6',
+    windowColor: '#00000001',
+    windowType: cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS,
+    edgeType: cast.framework.messages.TextTrackEdgeType.NONE,
+    edgeColor: '#00000000',
+  },
+  {
+    id: 'contrast',
+    labelKey: 'contrast',
+    sampleClass: 'contrast',
+    foregroundColor: '#FFF200FF',
+    backgroundColor: '#000000E6',
+    windowColor: '#00000001',
+    windowType: cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS,
+    edgeType: cast.framework.messages.TextTrackEdgeType.NONE,
+    edgeColor: '#00000000',
+  },
+  {
+    id: 'light',
+    labelKey: 'light',
+    sampleClass: 'light',
+    foregroundColor: '#000000FF',
+    backgroundColor: '#FFFFFFFF',
+    windowColor: '#00000001',
+    windowType: cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS,
+    edgeType: cast.framework.messages.TextTrackEdgeType.NONE,
+    edgeColor: '#00000000',
+  },
 ];
 
 function suppressNativePlayerOverlay() {
@@ -342,9 +385,9 @@ const translations = {
     paused: 'Paused', finished: 'Playback finished', code: 'Code',
     audio: 'Audio', subtitles: 'Subtitles', quality: 'Quality', auto: 'Auto', off: 'Off',
     subtitleStyling: 'Subtitle styling',
-    subtitleSize: 'Subtitle size', subtitleColor: 'Subtitle color',
+    subtitleSize: 'Size', subtitleStyle: 'Style',
     small: 'Small', medium: 'Medium', large: 'Large',
-    white: 'White', yellow: 'Yellow', cyan: 'Cyan',
+    dropShadow: 'Drop shadow', dark: 'Dark', contrast: 'Contrast', light: 'Light',
     live: 'Live', recording: 'Recording', movie: 'Movie',
   },
   uk: {
@@ -355,9 +398,9 @@ const translations = {
     paused: 'Пауза', finished: 'Відтворення завершено', code: 'Код',
     audio: 'Аудіо', subtitles: 'Субтитри', quality: 'Якість', auto: 'Авто', off: 'Вимкнено',
     subtitleStyling: 'Оформлення субтитрів',
-    subtitleSize: 'Розмір субтитрів', subtitleColor: 'Колір субтитрів',
+    subtitleSize: 'Розмір', subtitleStyle: 'Стиль',
     small: 'Малий', medium: 'Середній', large: 'Великий',
-    white: 'Білий', yellow: 'Жовтий', cyan: 'Бірюзовий',
+    dropShadow: 'Ефект тіні', dark: 'Темний', contrast: 'Контрастний', light: 'Світлий',
     live: 'Наживо', recording: 'Запис', movie: 'Фільм',
   },
   ru: {
@@ -368,9 +411,9 @@ const translations = {
     paused: 'Пауза', finished: 'Просмотр завершён', code: 'Код',
     audio: 'Аудио', subtitles: 'Субтитры', quality: 'Качество', auto: 'Авто', off: 'Выключены',
     subtitleStyling: 'Оформление субтитров',
-    subtitleSize: 'Размер субтитров', subtitleColor: 'Цвет субтитров',
+    subtitleSize: 'Размер', subtitleStyle: 'Стиль',
     small: 'Маленький', medium: 'Средний', large: 'Большой',
-    white: 'Белый', yellow: 'Жёлтый', cyan: 'Бирюзовый',
+    dropShadow: 'Эффект тени', dark: 'Тёмный', contrast: 'Контрастный', light: 'Светлый',
     live: 'Прямой эфир', recording: 'Запись', movie: 'Фильм',
   },
   sk: {
@@ -381,9 +424,9 @@ const translations = {
     paused: 'Pozastavené', finished: 'Prehrávanie sa skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuté',
     subtitleStyling: 'Vzhľad titulkov',
-    subtitleSize: 'Veľkosť titulkov', subtitleColor: 'Farba titulkov',
+    subtitleSize: 'Veľkosť', subtitleStyle: 'Štýl',
     small: 'Malé', medium: 'Stredné', large: 'Veľké',
-    white: 'Biela', yellow: 'Žltá', cyan: 'Tyrkysová',
+    dropShadow: 'Vrhaný tieň', dark: 'Tmavý', contrast: 'Kontrastný', light: 'Svetlý',
     live: 'Naživo', recording: 'Záznam', movie: 'Film',
   },
   cs: {
@@ -394,9 +437,9 @@ const translations = {
     paused: 'Pozastaveno', finished: 'Přehrávání skončilo', code: 'Kód',
     audio: 'Zvuk', subtitles: 'Titulky', quality: 'Kvalita', auto: 'Automaticky', off: 'Vypnuto',
     subtitleStyling: 'Vzhled titulků',
-    subtitleSize: 'Velikost titulků', subtitleColor: 'Barva titulků',
+    subtitleSize: 'Velikost', subtitleStyle: 'Styl',
     small: 'Malé', medium: 'Střední', large: 'Velké',
-    white: 'Bílá', yellow: 'Žlutá', cyan: 'Tyrkysová',
+    dropShadow: 'Vržený stín', dark: 'Tmavý', contrast: 'Kontrastní', light: 'Světlý',
     live: 'Živě', recording: 'Záznam', movie: 'Film',
   },
   hu: {
@@ -424,6 +467,10 @@ const translations = {
     tryAgain: 'Spróbuj ponownie lub wybierz inny film.',
     paused: 'Wstrzymano', finished: 'Odtwarzanie zakończone', code: 'Kod',
     audio: 'Dźwięk', subtitles: 'Napisy', quality: 'Jakość', auto: 'Auto', off: 'Wyłączone',
+    subtitleStyling: 'Wygląd napisów',
+    subtitleSize: 'Rozmiar', subtitleStyle: 'Styl',
+    small: 'Mały', medium: 'Średni', large: 'Duży',
+    dropShadow: 'Cień', dark: 'Ciemny', contrast: 'Kontrastowy', light: 'Jasny',
     live: 'Na żywo', recording: 'Nagranie', movie: 'Film',
   },
   ro: {
@@ -1291,6 +1338,11 @@ function scheduleSubtitleStyleRestore(expectedIds) {
 function setActiveSubtitleIds(ids) {
   const activeIds = Array.isArray(ids) ? ids : [];
   const manager = playerManager.getTextTracksManager();
+  if (currentPresentation) {
+    currentPresentation.selectedSubtitleId = activeIds.length > 0
+      ? Number(activeIds[0])
+      : -1;
+  }
   cancelSubtitleStyleRestore();
   if (activeIds.length > 0 && subtitleStyleDirty) {
     // Apply before activation as well: receivers differ in whether the text
@@ -1299,6 +1351,52 @@ function setActiveSubtitleIds(ids) {
   }
   manager.setActiveByIds(activeIds);
   scheduleSubtitleStyleRestore(activeIds);
+}
+
+function subtitlePresetIsSelected(preset) {
+  return normalizedRgba(subtitleForegroundColor)
+      === normalizedRgba(preset.foregroundColor)
+    && normalizedRgba(subtitleBackgroundColor)
+      === normalizedRgba(preset.backgroundColor)
+    && normalizedRgba(subtitleWindowColor)
+      === normalizedRgba(preset.windowColor)
+    && subtitleWindowType === preset.windowType
+    && subtitleEdgeType === preset.edgeType
+    && normalizedRgba(subtitleEdgeColor)
+      === normalizedRgba(preset.edgeColor);
+}
+
+function applySubtitlePreset(preset) {
+  subtitleForegroundColor = preset.foregroundColor;
+  subtitleBackgroundColor = preset.backgroundColor;
+  subtitleWindowColor = preset.windowColor;
+  subtitleWindowType = preset.windowType;
+  subtitleEdgeType = preset.edgeType;
+  subtitleEdgeColor = preset.edgeColor;
+  applySubtitleStyle();
+}
+
+function lockLocalSubtitleSelection(subtitleId) {
+  localSubtitleSelectionLock = {
+    subtitleId,
+    contentKey: currentPresentation?.contentKey || '',
+    expiresAt: Date.now() + LOCAL_SUBTITLE_SELECTION_LOCK_MS,
+  };
+}
+
+function shouldIgnoreSenderSubtitleSelection(subtitleId) {
+  if (!localSubtitleSelectionLock
+      || Date.now() > localSubtitleSelectionLock.expiresAt
+      || localSubtitleSelectionLock.contentKey
+        !== (currentPresentation?.contentKey || '')) {
+    localSubtitleSelectionLock = null;
+    return false;
+  }
+  if (sameTrackId(localSubtitleSelectionLock.subtitleId, subtitleId)) {
+    localSubtitleSelectionLock = null;
+    return false;
+  }
+  return true;
 }
 
 function optionItems(section = menuSection) {
@@ -1346,22 +1444,23 @@ function optionItems(section = menuSection) {
         id: `subtitle-size-${option.value}`,
         kind: 'subtitle-size',
         value: option.value,
+        sampleClass: `size-${option.sampleClass}`,
         label: translate(option.labelKey),
         selected: Math.abs(subtitleFontScale - option.value) < 0.01,
       })),
       {
-        id: 'subtitle-color-heading',
+        id: 'subtitle-style-heading',
         kind: 'heading',
-        label: translate('subtitleColor'),
+        label: translate('subtitleStyle'),
         selectable: false,
       },
-      ...SUBTITLE_COLOR_OPTIONS.map(option => ({
-        id: `subtitle-color-${option.labelKey}`,
-        kind: 'subtitle-color',
-        value: option.value,
-        swatch: option.value,
+      ...SUBTITLE_STYLE_PRESETS.map(option => ({
+        id: `subtitle-preset-${option.id}`,
+        kind: 'subtitle-preset',
+        preset: option,
+        sampleClass: option.sampleClass,
         label: translate(option.labelKey),
-        selected: normalizedRgba(subtitleForegroundColor) === normalizedRgba(option.value),
+        selected: subtitlePresetIsSelected(option),
       })),
     ];
   }
@@ -1436,6 +1535,12 @@ function renderOptions() {
         swatch.className = 'receiver-option-swatch';
         swatch.style.background = item.swatch.slice(0, 7);
         row.appendChild(swatch);
+      }
+      if (item.sampleClass) {
+        const sample = document.createElement('span');
+        sample.className = `receiver-option-sample ${item.sampleClass}`;
+        sample.textContent = 'Aa';
+        row.appendChild(sample);
       }
       const label = document.createElement('span');
       label.className = 'receiver-option-label';
@@ -1642,21 +1747,22 @@ function applySelectedOption() {
     }), 0);
     returnControl = 'audio';
   } else if (item.kind === 'subtitle-track') {
-    setActiveSubtitleIds(item.id < 0 ? [] : [item.id]);
+    const subtitleId = item.id < 0 ? -1 : Number(item.id);
     if (currentPresentation) {
-      currentPresentation.selectedSubtitleId = item.id < 0 ? -1 : Number(item.id);
+      currentPresentation.selectedSubtitleId = subtitleId;
     }
+    lockLocalSubtitleSelection(subtitleId);
+    setActiveSubtitleIds(subtitleId < 0 ? [] : [subtitleId]);
     setTimeout(() => notifyTrackSelection({
       audioId: currentPresentation?.selectedAudioId ?? -1,
-      subtitleId: item.id < 0 ? -1 : Number(item.id),
+      subtitleId,
     }), 0);
     returnControl = 'subtitles';
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
     applySubtitleStyle();
-  } else if (item.kind === 'subtitle-color') {
-    subtitleForegroundColor = item.value;
-    applySubtitleStyle();
+  } else if (item.kind === 'subtitle-preset') {
+    applySubtitlePreset(item.preset);
   } else if (item.kind === 'subtitle-styling') {
     showSubtitleStyleOptions();
     return;
@@ -2243,12 +2349,18 @@ function applyTrackSelection(message) {
   }
   if (hasOwn(message, 'subtitleId')) {
     const subtitleId = Number(message.subtitleId);
-    if (currentPresentation) {
-      currentPresentation.selectedSubtitleId =
-        Number.isFinite(subtitleId) && subtitleId >= 0 ? subtitleId : -1;
+    const normalizedSubtitleId =
+      Number.isFinite(subtitleId) && subtitleId >= 0 ? subtitleId : -1;
+    if (shouldIgnoreSenderSubtitleSelection(normalizedSubtitleId)) {
+      console.info(
+        '[SWEET Receiver] Ignoring stale sender subtitle selection',
+        normalizedSubtitleId);
+    } else {
+      if (currentPresentation) {
+        currentPresentation.selectedSubtitleId = normalizedSubtitleId;
+      }
+      setActiveSubtitleIds(normalizedSubtitleId >= 0 ? [normalizedSubtitleId] : []);
     }
-    setActiveSubtitleIds(
-      Number.isFinite(subtitleId) && subtitleId >= 0 ? [subtitleId] : []);
   }
   updateControlAvailability();
   updateControlLabels();

@@ -820,6 +820,53 @@
         box-sizing: border-box;
       }
 
+      .receiver-option-sample {
+        display: inline-flex;
+        width: 42px;
+        height: 34px;
+        margin-right: 12px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.12);
+        box-sizing: border-box;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font: 650 20px/1 'Inter', Arial, sans-serif;
+        flex: 0 0 auto;
+      }
+
+      .receiver-option-sample.size-small {
+        font-size: 15px;
+      }
+
+      .receiver-option-sample.size-medium {
+        font-size: 20px;
+      }
+
+      .receiver-option-sample.size-large {
+        font-size: 25px;
+      }
+
+      .receiver-option-sample.drop-shadow {
+        background: transparent;
+        text-shadow: 2px 2px 3px #000;
+      }
+
+      .receiver-option-sample.dark {
+        background: #000;
+        color: #fff;
+      }
+
+      .receiver-option-sample.contrast {
+        background: #000;
+        color: #fff200;
+      }
+
+      .receiver-option-sample.light {
+        background: #fff;
+        color: #000;
+      }
+
       #receiver-seek-preview {
         position: fixed;
         left: 50%;
@@ -968,7 +1015,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-41"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-42"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
