@@ -105,9 +105,9 @@ let suppressBackKeyUp = false;
 let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
-let subtitleBackgroundColor = '#00000001';
-let subtitleWindowColor = '#00000001';
-let subtitleWindowType = cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS;
+let subtitleBackgroundColor = '#00000000';
+let subtitleWindowColor = '#00000000';
+let subtitleWindowType = cast.framework.messages.TextTrackWindowType.NONE;
 let subtitleEdgeType = cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
 let subtitleEdgeColor = '#000000FF';
 let subtitleStyleDirty = false;
@@ -206,6 +206,10 @@ function visitOpenRoots(root, visitor) {
 
 function styleSubtitleContainer(container) {
   const transform = subtitlesLifted ? 'translateY(-19vh)' : 'translateY(0)';
+  container.style.setProperty('z-index', '17', 'important');
+  container.style.setProperty('opacity', '1', 'important');
+  container.style.setProperty('visibility', 'visible', 'important');
+  container.style.setProperty('pointer-events', 'none', 'important');
   if (container.style.getPropertyValue('transform') !== transform) {
     container.style.setProperty('transform', transform, 'important');
   }
@@ -1108,10 +1112,10 @@ function captureSubtitleStyle(style, markDirty = true) {
   if (style.windowColor) {
     subtitleWindowColor = normalizedRgba(style.windowColor);
   }
-  if (style.windowType) {
+  if (style.windowType !== undefined && style.windowType !== null) {
     subtitleWindowType = style.windowType;
   }
-  if (style.edgeType) {
+  if (style.edgeType !== undefined && style.edgeType !== null) {
     subtitleEdgeType = style.edgeType;
   }
   if (style.edgeColor) {
@@ -1149,12 +1153,12 @@ function applySubtitleStyle(markDirty = true) {
     style.backgroundColor = subtitleBackgroundColor;
     style.windowColor = subtitleWindowColor;
     style.windowType = subtitleWindowType;
-    style.windowRoundedCornerRadius = 8;
+    if (subtitleWindowType
+        === cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS) {
+      style.windowRoundedCornerRadius = 8;
+    }
     style.edgeType = subtitleEdgeType;
     style.edgeColor = subtitleEdgeColor;
-    style.fontGenericFamily =
-      cast.framework.messages.TextTrackFontGenericFamily.SANS_SERIF;
-    style.fontStyle = cast.framework.messages.TextTrackFontStyle.NORMAL;
     manager.setTextTrackStyle(style);
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
