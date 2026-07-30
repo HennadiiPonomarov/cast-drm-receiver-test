@@ -1147,16 +1147,15 @@ function applySubtitleStyle(markDirty = true) {
   }
   try {
     const manager = playerManager.getTextTracksManager();
+    const current = manager.getTextTracksStyle();
     const style = new cast.framework.messages.TextTrackStyle();
+    if (current) {
+      Object.assign(style, current);
+    }
     style.fontScale = subtitleFontScale;
     style.foregroundColor = subtitleForegroundColor;
     style.backgroundColor = subtitleBackgroundColor;
     style.windowColor = subtitleWindowColor;
-    style.windowType = subtitleWindowType;
-    if (subtitleWindowType
-        === cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS) {
-      style.windowRoundedCornerRadius = 8;
-    }
     style.edgeType = subtitleEdgeType;
     style.edgeColor = subtitleEdgeColor;
     manager.setTextTrackStyle(style);
@@ -2628,11 +2627,6 @@ playerManager.setMessageInterceptor(
   request => {
     if (request?.textTrackStyle) {
       captureSubtitleStyle(request.textTrackStyle, true);
-      setTimeout(() => {
-        applySubtitleStyle(false);
-        scheduleSubtitleStyleRestore(
-          playerManager.getTextTracksManager().getActiveIds());
-      }, 0);
     }
     return request;
   });
