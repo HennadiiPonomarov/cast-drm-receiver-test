@@ -8,6 +8,7 @@ const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
 const PLAYING_TERMINAL_GUARD_MS = 1000;
+const USE_UI_TEXT_DISPLAYER = false;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
 const statusElement = document.getElementById('receiver-status');
@@ -232,6 +233,9 @@ function styleSubtitleContainersInRoot(root) {
 }
 
 function applySubtitleViewportPosition() {
+  if (!USE_UI_TEXT_DISPLAYER) {
+    return;
+  }
   visitOpenRoots(document, styleSubtitleContainersInRoot);
 }
 
@@ -267,6 +271,9 @@ function setSubtitlesLifted(lifted) {
 }
 
 function installSubtitleUiPositioning() {
+  if (!USE_UI_TEXT_DISPLAYER) {
+    return;
+  }
   applySubtitleViewportPosition();
   subtitleUiObservers.forEach(observer => observer.disconnect());
   subtitleUiObservers = [];
@@ -2650,7 +2657,7 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   // Keep text rendering on the receiver's native video surface. Shaka's
   // DOM-based UITextDisplayer can be misaligned or fully hidden on older Cast
   // implementations when the receiver supplies its own controls overlay.
-  playbackConfig.enableUITextDisplayer = false;
+  playbackConfig.enableUITextDisplayer = USE_UI_TEXT_DISPLAYER;
 
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
