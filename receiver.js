@@ -317,7 +317,7 @@ function styleSubtitleTextElement(element) {
 }
 
 function styleSubtitleContainer(container) {
-  const transform = subtitlesLifted ? 'translateY(-29vh)' : 'translateY(-6vh)';
+  const transform = subtitlesLifted ? 'translateY(-30vh)' : 'translateY(-7vh)';
   if (container.style.getPropertyValue('transform') !== transform) {
     container.style.setProperty('transform', transform, 'important');
   }
