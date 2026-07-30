@@ -112,7 +112,9 @@ let subtitleWindowType =
 let subtitleEdgeType =
   cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
 let subtitleEdgeColor = '#000000FF';
-let subtitleStyleDirty = false;
+// Subtitle appearance belongs to the receiver. Sender devices only select a
+// language track and must not replace the TV-side style.
+let subtitleStyleDirty = true;
 let playbackPaused = false;
 let subtitlesLifted = false;
 
@@ -1285,6 +1287,19 @@ function notifySubtitleStyleApplied() {
   });
 }
 
+function buildReceiverSubtitleStyle() {
+  const style = new cast.framework.messages.TextTrackStyle();
+  style.fontScale = subtitleFontScale;
+  style.foregroundColor = subtitleForegroundColor;
+  style.backgroundColor = subtitleBackgroundColor;
+  style.windowColor = subtitleWindowColor;
+  style.windowType = subtitleWindowType;
+  style.windowRoundedCornerRadius = 8;
+  style.edgeType = subtitleEdgeType;
+  style.edgeColor = subtitleEdgeColor;
+  return style;
+}
+
 function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
   if (markDirty) {
     // Keep the choice even when no text track is active yet. Some CAF
@@ -1293,20 +1308,7 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
   }
   try {
     const manager = playerManager.getTextTracksManager();
-    const current = manager.getTextTracksStyle();
-    const style = new cast.framework.messages.TextTrackStyle();
-    if (current) {
-      Object.assign(style, current);
-    }
-    style.fontScale = subtitleFontScale;
-    style.foregroundColor = subtitleForegroundColor;
-    style.backgroundColor = subtitleBackgroundColor;
-    style.windowColor = subtitleWindowColor;
-    style.windowType = subtitleWindowType;
-    style.windowRoundedCornerRadius = 8;
-    style.edgeType = subtitleEdgeType;
-    style.edgeColor = subtitleEdgeColor;
-    manager.setTextTrackStyle(style);
+    manager.setTextTrackStyle(buildReceiverSubtitleStyle());
     applySubtitleViewportPosition();
     if (notifySender) {
       notifySubtitleStyleApplied();
@@ -1316,8 +1318,7 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
   }
 }
 
-function applySenderSubtitleStyle(message) {
-  captureSubtitleStyle(message, true);
+function applyReceiverOwnedSubtitleStyle() {
   applySubtitleStyle(false, false);
   let activeIds = [];
   try {
@@ -2842,7 +2843,7 @@ playerManager.setMessageInterceptor(
   cast.framework.messages.MessageType.EDIT_TRACKS_INFO,
   request => {
     if (request?.textTrackStyle) {
-      captureSubtitleStyle(request.textTrackStyle, true);
+      request.textTrackStyle = buildReceiverSubtitleStyle();
       setTimeout(() => {
         applySubtitleStyle(false, false);
         scheduleSubtitleStyleRestore(
@@ -3102,7 +3103,7 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
     } else if (message?.type === 'select-tracks') {
       applyTrackSelection(message);
     } else if (message?.type === 'subtitle-style') {
-      applySenderSubtitleStyle(message);
+      applyReceiverOwnedSubtitleStyle();
     } else if (message?.type === 'quality-catalog') {
       applyQualityCatalog(message);
     } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
