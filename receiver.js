@@ -95,8 +95,6 @@ let subtitleStyleApplyToken = 0;
 let trackRestoreTimer = null;
 let trackRestoreToken = 0;
 let nativeOverlayObserver = null;
-let nativeOverlayAttributeObserver = null;
-let nativeOverlayObservedElement = null;
 let subtitleUiObservers = [];
 let subtitleUiObservedRoots = new WeakSet();
 let controlsFocusArea = 'timeline';
@@ -105,17 +103,9 @@ let suppressBackKeyUp = false;
 let suppressStopKeyUp = false;
 let subtitleFontScale = 1;
 let subtitleForegroundColor = '#FFFFFFFF';
-let subtitleBackgroundColor = '#00000001';
-let subtitleWindowColor = '#00000001';
-let subtitleWindowType =
-  cast.framework.messages.TextTrackWindowType.ROUNDED_CORNERS;
-let subtitleEdgeType =
-  cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
-let subtitleEdgeColor = '#000000FF';
 let subtitleStyleDirty = false;
 let playbackPaused = false;
 let subtitlesLifted = false;
-let hasSystemMediaControlsOverlay = false;
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
@@ -136,36 +126,13 @@ function suppressNativePlayerOverlay() {
     return;
   }
 
-  if (nativeOverlayObservedElement !== nativeOverlay) {
-    nativeOverlayAttributeObserver?.disconnect();
-    nativeOverlayObservedElement = nativeOverlay;
-    nativeOverlayAttributeObserver = new MutationObserver(() => {
-      suppressNativePlayerOverlay();
-    });
-    nativeOverlayAttributeObserver.observe(nativeOverlay, {
-      attributes: true,
-      attributeFilter: ['style', 'class', 'aria-hidden'],
-    });
-  }
-
   // Keep CAF's overlay mounted because it participates in the receiver state
   // machine. Making only its pixels transparent avoids duplicate metadata,
   // progress and loading UI without touching the video or subtitle surfaces.
-  if (nativeOverlay.style.getPropertyValue('opacity') !== '0'
-      || nativeOverlay.style.getPropertyPriority('opacity') !== 'important') {
-    nativeOverlay.style.setProperty('opacity', '0', 'important');
-  }
-  if (nativeOverlay.style.getPropertyValue('visibility') !== 'hidden'
-      || nativeOverlay.style.getPropertyPriority('visibility') !== 'important') {
-    nativeOverlay.style.setProperty('visibility', 'hidden', 'important');
-  }
-  if (nativeOverlay.style.getPropertyValue('pointer-events') !== 'none'
-      || nativeOverlay.style.getPropertyPriority('pointer-events') !== 'important') {
-    nativeOverlay.style.setProperty('pointer-events', 'none', 'important');
-  }
-  if (nativeOverlay.getAttribute('aria-hidden') !== 'true') {
-    nativeOverlay.setAttribute('aria-hidden', 'true');
-  }
+  nativeOverlay.style.setProperty('opacity', '0', 'important');
+  nativeOverlay.style.setProperty('visibility', 'hidden', 'important');
+  nativeOverlay.style.setProperty('pointer-events', 'none', 'important');
+  nativeOverlay.setAttribute('aria-hidden', 'true');
 
   const overlayShadowRoot = nativeOverlay.shadowRoot;
   if (overlayShadowRoot && !overlayShadowRoot.getElementById('sweet-overlay-visibility')) {
@@ -185,6 +152,7 @@ function suppressNativePlayerOverlay() {
 function installNativePlayerOverlaySuppression() {
   const playerShadowRoot = playerElement?.shadowRoot;
   if (!playerShadowRoot) {
+    window.setTimeout(installNativePlayerOverlaySuppression, 100);
     return;
   }
   suppressNativePlayerOverlay();
@@ -264,6 +232,10 @@ function setSubtitlesLifted(lifted) {
 }
 
 function installSubtitleUiPositioning() {
+  if (!playerElement?.shadowRoot) {
+    window.setTimeout(installSubtitleUiPositioning, 100);
+    return;
+  }
   applySubtitleViewportPosition();
   subtitleUiObservers.forEach(observer => observer.disconnect());
   subtitleUiObservers = [];
@@ -1089,64 +1061,24 @@ function normalizedRgba(value) {
   return String(value || '').trim().toUpperCase();
 }
 
-function captureSubtitleStyle(style, markDirty = true) {
-  if (!style) {
-    return;
-  }
-  if (Number.isFinite(Number(style.fontScale))) {
-    subtitleFontScale = Number(style.fontScale);
-  }
-  if (style.foregroundColor) {
-    subtitleForegroundColor = normalizedRgba(style.foregroundColor);
-  }
-  if (style.backgroundColor) {
-    subtitleBackgroundColor = normalizedRgba(style.backgroundColor);
-  }
-  if (style.windowColor) {
-    subtitleWindowColor = normalizedRgba(style.windowColor);
-  }
-  if (style.windowType !== undefined && style.windowType !== null) {
-    subtitleWindowType = style.windowType;
-  }
-  if (style.edgeType !== undefined && style.edgeType !== null) {
-    subtitleEdgeType = style.edgeType;
-  }
-  if (style.edgeColor) {
-    subtitleEdgeColor = normalizedRgba(style.edgeColor);
-  }
-  if (markDirty) {
-    subtitleStyleDirty = true;
-  }
-}
-
 function syncSubtitleStyleState() {
   if (subtitleStyleDirty) {
     return;
   }
   try {
-    captureSubtitleStyle(
-      playerManager.getTextTracksManager().getTextTracksStyle(),
-      false);
+    const style = playerManager.getTextTracksManager().getTextTracksStyle();
+    if (Number.isFinite(Number(style?.fontScale))) {
+      subtitleFontScale = Number(style.fontScale);
+    }
+    if (style?.foregroundColor) {
+      subtitleForegroundColor = normalizedRgba(style.foregroundColor);
+    }
   } catch (error) {
     console.warn('[SWEET Receiver] Subtitle style is not ready', error);
   }
 }
 
-function notifySubtitleStyleApplied() {
-  sendReceiverMessage({
-    type: 'subtitle-style-applied',
-    contentKey: currentPresentation?.contentKey || '',
-    fontScale: subtitleFontScale,
-    foregroundColor: subtitleForegroundColor,
-    backgroundColor: subtitleBackgroundColor,
-    windowColor: subtitleWindowColor,
-    windowType: subtitleWindowType,
-    edgeType: subtitleEdgeType,
-    edgeColor: subtitleEdgeColor,
-  });
-}
-
-function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
+function applySubtitleStyle(markDirty = true) {
   if (markDirty) {
     // Keep the choice even when no text track is active yet. Some CAF
     // receivers reject styling until a subtitle track has been enabled.
@@ -1161,32 +1093,10 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
     }
     style.fontScale = subtitleFontScale;
     style.foregroundColor = subtitleForegroundColor;
-    style.backgroundColor = subtitleBackgroundColor;
-    style.windowColor = subtitleWindowColor;
-    style.windowType = subtitleWindowType;
-    style.windowRoundedCornerRadius = 8;
-    style.edgeType = subtitleEdgeType;
-    style.edgeColor = subtitleEdgeColor;
     manager.setTextTrackStyle(style);
-    if (notifySender) {
-      notifySubtitleStyleApplied();
-    }
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
-}
-
-function applySenderSubtitleStyle(message) {
-  captureSubtitleStyle(message, true);
-  applySubtitleStyle(false, false);
-  let activeIds = [];
-  try {
-    activeIds = playerManager.getTextTracksManager().getActiveIds();
-  } catch (error) {
-    console.warn('[SWEET Receiver] Subtitle tracks are not ready', error);
-  }
-  scheduleSubtitleStyleRestore(activeIds);
-  notifySubtitleStyleApplied();
 }
 
 function cancelSubtitleStyleRestore() {
@@ -2405,11 +2315,6 @@ function handleReceiverKey(event) {
     return;
   }
 
-  // Some built-in Cast implementations restore CAF's native controls when a
-  // remote key is pressed. Re-apply suppression before our own controls render.
-  suppressNativePlayerOverlay();
-  requestAnimationFrame(suppressNativePlayerOverlay);
-
   if (back && !isOptionsVisible() && !controlsAreVisible()) {
     return;
   }
@@ -2605,21 +2510,6 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   return loadRequest;
 });
 
-playerManager.setMessageInterceptor(
-  cast.framework.messages.MessageType.EDIT_TRACKS_INFO,
-  request => {
-    if (request?.textTrackStyle) {
-      captureSubtitleStyle(request.textTrackStyle, true);
-      setTimeout(() => {
-        applySubtitleStyle(false, false);
-        scheduleSubtitleStyleRestore(
-          playerManager.getTextTracksManager().getActiveIds());
-        notifySubtitleStyleApplied();
-      }, 0);
-    }
-    return request;
-  });
-
 playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
   playbackStopped = false;
@@ -2788,10 +2678,6 @@ function handlePlaybackPause() {
     showIdle();
     return;
   }
-  if (hasSystemMediaControlsOverlay) {
-    hidePause();
-    return;
-  }
   showPause();
 }
 
@@ -2867,16 +2753,11 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
   try {
     const message = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
     if (message?.type === 'request-tracks') {
-      if (subtitleStyleDirty) {
-        notifySubtitleStyleApplied();
-      }
       sendTrackCatalog();
     } else if (!messageMatchesCurrentContent(message)) {
       return;
     } else if (message?.type === 'select-tracks') {
       applyTrackSelection(message);
-    } else if (message?.type === 'subtitle-style') {
-      applySenderSubtitleStyle(message);
     } else if (message?.type === 'quality-catalog') {
       applyQualityCatalog(message);
     } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
@@ -2900,9 +2781,6 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
 });
 
 const options = new cast.framework.CastReceiverOptions();
-// A plain media element keeps CAF responsible for playback, DRM, tracks and
-// media sessions while preventing cast-media-player from drawing a second UI.
-options.mediaElement = playerElement;
 // Widevine CMAF HLS must use Shaka. MPL is legacy and stalls after buffering
 // encrypted fMP4 segments on this receiver. HLS segment format fields above
 // are intentionally limited to clear MPEG-TS streams: they apply to MPL only.
@@ -2910,21 +2788,7 @@ options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
-// The receiver supplies its own TV controls. Remove CAF's default button slots
-// so touch-enabled and built-in Cast devices do not draw a second control row.
-cast.framework.ui.Controls.getInstance().clearDefaultSlotAssignments();
 context.start(options);
-
-cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()
-    .then(hasOverlay => {
-      hasSystemMediaControlsOverlay = Boolean(hasOverlay);
-      if (hasSystemMediaControlsOverlay && playbackPaused) {
-        hidePause();
-      }
-    })
-    .catch(error => {
-      console.warn('[SWEET Receiver] Cannot detect system media controls', error);
-    });
 
 installNativePlayerOverlaySuppression();
 installSubtitleUiPositioning();
