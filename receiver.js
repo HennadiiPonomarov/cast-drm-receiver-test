@@ -109,6 +109,7 @@ let subtitleStyleDirty = false;
 let playbackPaused = false;
 let subtitlesLifted = false;
 let hasSystemMediaControlsOverlay = false;
+let receiverControlsMode = 'pending';
 
 const CONTROL_ORDER = ['rewind', 'play', 'forward', 'audio', 'subtitles', 'quality'];
 const SUBTITLE_SIZE_OPTIONS = [
@@ -251,7 +252,7 @@ function observeSubtitleUiRoot(root) {
 }
 
 function setSubtitlesLifted(lifted) {
-  subtitlesLifted = Boolean(lifted);
+  subtitlesLifted = Boolean(lifted && receiverControlsMode === 'custom');
   document.documentElement.classList.toggle('subtitles-lifted', subtitlesLifted);
   applySubtitleViewportPosition();
 }
@@ -1023,8 +1024,11 @@ function updateControlLabels() {
 }
 
 function showPause(autoHide = false) {
-  if (!currentPresentation || playbackHasError) {
-    return;
+  if (receiverControlsMode !== 'custom'
+      || !currentPresentation
+      || playbackHasError) {
+    hidePause();
+    return false;
   }
   ensureReceiverKeyFocus();
   if (isOptionsVisible()) {
@@ -1076,6 +1080,7 @@ function showPause(autoHide = false) {
   if (autoHide) {
     scheduleControlsHide();
   }
+  return true;
 }
 
 function normalizedRgba(value) {
@@ -1328,7 +1333,7 @@ function renderOptions() {
 }
 
 function showOptions(section = menuSection) {
-  if (!hasOptionsForSection(section)) {
+  if (receiverControlsMode !== 'custom' || !hasOptionsForSection(section)) {
     return false;
   }
   menuSection = section;
@@ -1399,6 +1404,11 @@ function closeOptionsAndRestoreFocus(control = menuReturnControl, autoHide = tru
 }
 
 function restorePendingControlAfterLoad(force = false) {
+  if (receiverControlsMode === 'system') {
+    pendingControlAfterLoad = null;
+    showControlsOnNextPlayback = false;
+    return false;
+  }
   if (!pendingControlAfterLoad || !currentPresentation) {
     return false;
   }
@@ -1431,6 +1441,13 @@ function restorePendingControlAfterLoad(force = false) {
 }
 
 function showInitialControlsIfReady(force = false) {
+  if (receiverControlsMode === 'system') {
+    showControlsOnNextPlayback = false;
+    return false;
+  }
+  if (receiverControlsMode !== 'custom') {
+    return false;
+  }
   if (!showControlsOnNextPlayback
       || pendingControlAfterLoad
       || !currentPresentation
@@ -1816,6 +1833,10 @@ function renderThumbnailCue(cue) {
 }
 
 function showSeekPreview(positionSeconds, autoHide = false, durationOverride = null) {
+  if (receiverControlsMode !== 'custom') {
+    hideSeekPreview();
+    return;
+  }
   const position = Math.max(0, Number(positionSeconds) || 0);
   previewSeekPosition = position;
   seekPreviewTimer = clearTimer(seekPreviewTimer);
@@ -2291,6 +2312,11 @@ function consumeRemoteKey(event) {
 }
 
 function handleReceiverKey(event) {
+  // Touch-enabled and built-in Cast implementations own their system media
+  // overlay. Do not consume remote keys or draw a competing receiver UI.
+  if (receiverControlsMode !== 'custom') {
+    return;
+  }
   const key = event.key || '';
   const eventCode = event.code || event.keyIdentifier || '';
   const code = Number(event.keyCode || event.which || 0);
@@ -2462,6 +2488,9 @@ function handleReceiverKey(event) {
 }
 
 function handleReceiverKeyUp(event) {
+  if (receiverControlsMode !== 'custom') {
+    return;
+  }
   if (suppressBackKeyUp && isBackKeyEvent(event)) {
     consumeRemoteKey(event);
     suppressBackKeyUp = false;
@@ -2704,7 +2733,7 @@ function handlePlaybackPause() {
     showIdle();
     return;
   }
-  if (hasSystemMediaControlsOverlay) {
+  if (receiverControlsMode !== 'custom') {
     hidePause();
     return;
   }
@@ -2723,6 +2752,13 @@ function handlePlaybackPlaying() {
   }
   scheduleTrackSelectionRestore();
   hideLoader();
+  if (receiverControlsMode === 'system') {
+    showControlsOnNextPlayback = false;
+    pendingControlAfterLoad = null;
+    hidePause();
+    hideEnd();
+    return;
+  }
   if (restorePendingControlAfterLoad(true)) {
     hideEnd();
     return;
@@ -2821,20 +2857,37 @@ options.useShakaForHls = true;
 options.customNamespaces = {
   [TRACKS_CHANNEL]: cast.framework.system.MessageType.JSON,
 };
-// The receiver supplies its own TV controls. Remove CAF's default button slots
-// so touch-enabled and built-in Cast devices do not draw a second control row.
-cast.framework.ui.Controls.getInstance().clearDefaultSlotAssignments();
 context.start(options);
 
 cast.framework.ui.Controls.getInstance().hasMediaControlsOverlay()
     .then(hasOverlay => {
       hasSystemMediaControlsOverlay = Boolean(hasOverlay);
-      if (hasSystemMediaControlsOverlay && playbackPaused) {
+      receiverControlsMode = hasSystemMediaControlsOverlay ? 'system' : 'custom';
+      document.documentElement.dataset.receiverControls = receiverControlsMode;
+      if (hasSystemMediaControlsOverlay) {
+        showControlsOnNextPlayback = false;
+        pendingControlAfterLoad = null;
         hidePause();
+        hideOptions();
+        hideSeekPreview();
+        setSubtitlesLifted(false);
+      } else if (currentPresentation && !playbackHasError) {
+        if (playbackPaused) {
+          showPause();
+        } else {
+          showInitialControlsIfReady(true);
+        }
       }
+      sendReceiverMessage({
+        type: 'receiver-controls-mode',
+        mode: receiverControlsMode,
+      });
     })
     .catch(error => {
       console.warn('[SWEET Receiver] Cannot detect system media controls', error);
+      receiverControlsMode = 'custom';
+      document.documentElement.dataset.receiverControls = receiverControlsMode;
+      showInitialControlsIfReady(true);
     });
 
 installNativePlayerOverlaySuppression();
