@@ -1206,21 +1206,7 @@ function syncSubtitleStyleState() {
   }
 }
 
-function notifySubtitleStyleApplied() {
-  sendReceiverMessage({
-    type: 'subtitle-style-applied',
-    contentKey: currentPresentation?.contentKey || '',
-    fontScale: subtitleFontScale,
-    foregroundColor: subtitleForegroundColor,
-    backgroundColor: subtitleBackgroundColor,
-    windowColor: subtitleWindowColor,
-    windowType: subtitleWindowType,
-    edgeType: subtitleEdgeType,
-    edgeColor: subtitleEdgeColor,
-  });
-}
-
-function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
+function applySubtitleStyle(markDirty = true) {
   if (markDirty) {
     // Keep the choice even when no text track is active yet. Some CAF
     // receivers reject styling until a subtitle track has been enabled.
@@ -1243,17 +1229,24 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
   } catch (error) {
     console.warn('[SWEET Receiver] Cannot apply subtitle style', error);
   }
-  if (notifySender) {
-    notifySubtitleStyleApplied();
-  }
 }
 
 function applySenderSubtitleStyle(message) {
   captureSubtitleStyle(message, true);
-  applySubtitleStyle(false, false);
+  applySubtitleStyle(false);
   const activeIds = playerManager.getTextTracksManager().getActiveIds();
   scheduleSubtitleStyleRestore(activeIds);
-  notifySubtitleStyleApplied();
+  sendReceiverMessage({
+    type: 'subtitle-style-applied',
+    contentKey: currentPresentation?.contentKey || '',
+    fontScale: subtitleFontScale,
+    foregroundColor: subtitleForegroundColor,
+    backgroundColor: subtitleBackgroundColor,
+    windowColor: subtitleWindowColor,
+    windowType: subtitleWindowType,
+    edgeType: subtitleEdgeType,
+    edgeColor: subtitleEdgeColor,
+  });
 }
 
 function cancelSubtitleStyleRestore() {
