@@ -419,8 +419,15 @@
 
       #receiver-channel-identity {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 18px;
+      }
+
+      #receiver-channel-copy {
+        flex: 1;
+        min-width: 0;
+        padding-top: 5px;
+        text-align: center;
       }
 
       #receiver-channel-artwork {
@@ -441,7 +448,7 @@
       #receiver-channel-epg {
         display: grid;
         gap: 13px;
-        margin-top: 24px;
+        margin-top: 8px;
       }
 
       .receiver-channel-epg-row {
@@ -458,8 +465,9 @@
 
       .receiver-channel-epg-row.recording-title {
         display: block;
-        color: rgba(247, 250, 251, 0.76);
-        font-size: 19px;
+        color: rgba(247, 250, 251, 0.68);
+        font: 500 16px/1.35 'Inter', Arial, sans-serif;
+        text-align: center;
       }
 
       .receiver-channel-epg-title {
@@ -1090,7 +1098,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-51"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-52"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -1131,9 +1139,11 @@
       <div id="receiver-channel-info" hidden>
         <div id="receiver-channel-identity">
           <img id="receiver-channel-artwork" alt="">
-          <div id="receiver-channel-name"></div>
+          <div id="receiver-channel-copy">
+            <div id="receiver-channel-name"></div>
+            <div id="receiver-channel-epg"></div>
+          </div>
         </div>
-        <div id="receiver-channel-epg"></div>
       </div>
       <div id="receiver-pause-content">
         <div id="receiver-pause-timeline">
