@@ -2478,6 +2478,12 @@ function restoreRequestedTrackSelection() {
   if (!currentPresentation) {
     return true;
   }
+  // Catch-up HLS is normalized by the sender to one muxed A/V rendition.
+  // Restoring IDs from the origin manifest makes older receivers rebuild the
+  // decoder during startup and fail with CAF 100/3016.
+  if (currentPresentation.isRecording) {
+    return true;
+  }
   try {
     const audioManager = playerManager.getAudioTracksManager();
     const textManager = playerManager.getTextTracksManager();
