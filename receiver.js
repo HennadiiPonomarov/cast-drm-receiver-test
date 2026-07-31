@@ -2478,12 +2478,6 @@ function restoreRequestedTrackSelection() {
   if (!currentPresentation) {
     return true;
   }
-  // Catch-up HLS is normalized by the sender to one muxed A/V rendition.
-  // Restoring IDs from the origin manifest makes older receivers rebuild the
-  // decoder during startup and fail with CAF 100/3016.
-  if (currentPresentation.isRecording) {
-    return true;
-  }
   try {
     const audioManager = playerManager.getAudioTracksManager();
     const textManager = playerManager.getTextTracksManager();
@@ -2554,9 +2548,6 @@ function scheduleTrackSelectionRestore() {
 }
 
 function applyTrackSelection(message) {
-  if (currentPresentation?.isRecording) {
-    return;
-  }
   if (hasOwn(message, 'audioId')) {
     const audioId = Number(message.audioId);
     if (Number.isFinite(audioId) && audioId >= 0) {
@@ -3036,18 +3027,16 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   if (drm.licenseUrl) {
     playbackConfig.licenseUrl = drm.licenseUrl;
     playbackConfig.protectionSystem = cast.framework.ContentProtection.WIDEVINE;
-    // CAF maps licenseUrl for VOD. Live/catch-up Widevine HLS needs the
-    // explicit Shaka key-system mapping; applying it to VOD can make CAF send
-    // a second, incompatible license request on some receiver versions.
-    if (drm.isLive || drm.isRecording) {
-      playbackConfig.shakaConfig = {
-        drm: {
-          servers: {
-            'com.widevine.alpha': drm.licenseUrl,
-          },
+    // CAF maps licenseUrl for the legacy player. With Shaka HLS enabled, also
+    // provide the EME key-system mapping explicitly: live Widevine HLS uses
+    // the same signed license endpoint as VOD, but is initialized by Shaka.
+    playbackConfig.shakaConfig = {
+      drm: {
+        servers: {
+          'com.widevine.alpha': drm.licenseUrl,
         },
-      };
-    }
+      },
+    };
   }
 
   if (drm.licenseHeaders) {
@@ -3063,25 +3052,6 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
       restrictions: {
         ...((playbackConfig.shakaConfig || {}).restrictions || {}),
         maxHeight,
-      },
-    };
-  }
-
-  // Older Cast implementations on Philips TVs can fail with Shaka 3016 when
-  // ABR changes HLS variants and the hardware decoder is reinitialized. The
-  // dedicated Cast URL already contains TV-compatible renditions, so keep one
-  // rendition for the lifetime of this load. Manual quality changes still
-  // work because the sender performs a new LOAD with a maxHeight restriction.
-  if (!drm.licenseUrl
-      && drm.isLive
-      && drm.castUrlSource === 'chrome_cast_url') {
-    playbackConfig.shakaConfig = {
-      ...(playbackConfig.shakaConfig || {}),
-      abr: {
-        ...((playbackConfig.shakaConfig || {}).abr || {}),
-        enabled: false,
-        useNetworkInformation: false,
-        defaultBandwidthEstimate: 4000000,
       },
     };
   }
