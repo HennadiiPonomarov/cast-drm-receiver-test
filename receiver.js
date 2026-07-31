@@ -27,6 +27,10 @@ const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
 const pauseMetaElement = document.getElementById('receiver-pause-meta');
 const pauseArtworkElement = document.getElementById('receiver-pause-artwork');
+const channelInfoElement = document.getElementById('receiver-channel-info');
+const channelArtworkElement = document.getElementById('receiver-channel-artwork');
+const channelNameElement = document.getElementById('receiver-channel-name');
+const channelEpgElement = document.getElementById('receiver-channel-epg');
 const pauseProgressElement = document.getElementById('receiver-pause-progress-fill');
 const pauseProgressTrackElement = document.getElementById('receiver-pause-progress');
 const pauseTimelineElement = document.getElementById('receiver-pause-timeline');
@@ -873,6 +877,31 @@ function presentationFor(media, customData = {}) {
     isMovie: hasOwn(customData, 'isMovie')
       ? Boolean(customData.isMovie)
       : (previousPresentation?.isMovie ?? (!customData.isLive && !customData.isRecording)),
+    isSeries: hasOwn(customData, 'isSeries')
+      ? Boolean(customData.isSeries)
+      : Boolean(previousPresentation?.isSeries),
+    contentKind: String(
+      customData.contentKind || previousPresentation?.contentKind || 'movie'),
+    channelTitle: String(
+      customData.channelTitle || previousPresentation?.channelTitle || ''),
+    programmeTitle: String(
+      customData.programmeTitle || previousPresentation?.programmeTitle || ''),
+    programmeStart: Number(customData.programmeStart)
+      || previousPresentation?.programmeStart
+      || 0,
+    programmeEnd: Number(customData.programmeEnd)
+      || previousPresentation?.programmeEnd
+      || 0,
+    epgItems: Array.isArray(customData.epgItems)
+      ? customData.epgItems.map(item => ({
+        title: String(item?.title || ''),
+        start: Number(item?.start) || 0,
+        end: Number(item?.end) || 0,
+      }))
+      : (previousPresentation?.epgItems || []).map(item => ({...item})),
+    activeEpgIndex: Number.isFinite(Number(customData.activeEpgIndex))
+      ? Number(customData.activeEpgIndex)
+      : (previousPresentation?.activeEpgIndex ?? -1),
     thumbnailsPlaylistUrl: secureMediaUrl(customData.thumbnailsPlaylistUrl || '')
       || previousPresentation?.thumbnailsPlaylistUrl
       || '',
@@ -903,6 +932,66 @@ function presentationFor(media, customData = {}) {
   };
 }
 
+function formatProgrammeTime(epochSeconds) {
+  const value = Number(epochSeconds);
+  if (!Number.isFinite(value) || value <= 0) {
+    return '';
+  }
+  const date = new Date(value * 1000);
+  return [date.getHours(), date.getMinutes()]
+    .map(part => String(part).padStart(2, '0'))
+    .join(':');
+}
+
+function renderChannelInfo() {
+  const isChannel = Boolean(
+    currentPresentation?.isLive || currentPresentation?.isRecording);
+  pauseElement?.classList.toggle('channel-presentation', isChannel);
+  if (!channelInfoElement) {
+    return;
+  }
+  channelInfoElement.hidden = !isChannel;
+  if (!isChannel) {
+    return;
+  }
+  if (channelNameElement) {
+    channelNameElement.textContent =
+      currentPresentation.channelTitle || currentPresentation.title;
+  }
+  if (channelArtworkElement) {
+    channelArtworkElement.hidden = !currentPresentation.artworkUrl;
+    if (currentPresentation.artworkUrl) {
+      channelArtworkElement.src = currentPresentation.artworkUrl;
+    }
+  }
+  if (!channelEpgElement) {
+    return;
+  }
+  channelEpgElement.replaceChildren();
+  let items = currentPresentation.epgItems || [];
+  let activeIndex = currentPresentation.activeEpgIndex;
+  if (items.length === 0 && currentPresentation.programmeTitle) {
+    items = [{
+      title: currentPresentation.programmeTitle,
+      start: currentPresentation.programmeStart,
+      end: currentPresentation.programmeEnd,
+    }];
+    activeIndex = 0;
+  }
+  items.forEach((item, index) => {
+    const row = document.createElement('div');
+    row.className = 'receiver-channel-epg-row';
+    row.classList.toggle('active', index === activeIndex);
+    const time = document.createElement('span');
+    time.textContent = formatProgrammeTime(item.start);
+    const title = document.createElement('span');
+    title.className = 'receiver-channel-epg-title';
+    title.textContent = item.title;
+    row.append(time, title);
+    channelEpgElement.append(row);
+  });
+}
+
 function presentationBadge(presentation = currentPresentation) {
   if (presentation?.isLive) {
     return translate('live');
@@ -911,6 +1000,13 @@ function presentationBadge(presentation = currentPresentation) {
     return translate('recording');
   }
   return translate('movie');
+}
+
+function presentationSecondaryText(presentation = currentPresentation) {
+  if (!presentation || presentation.isMovie) {
+    return '';
+  }
+  return presentation.subtitle || presentationBadge(presentation);
 }
 
 function hideTransition() {
@@ -1042,9 +1138,13 @@ function updateControlAvailability() {
   if (pauseTimelineElement) {
     pauseTimelineElement.hidden = !seekable && !isLive;
     pauseTimelineElement.classList.toggle('live', isLive);
+    pauseTimelineElement.classList.toggle(
+      'recording', Boolean(currentPresentation?.isRecording));
   }
   if (pauseLiveBadgeElement) {
-    pauseLiveBadgeElement.textContent = isLive ? translate('live') : '';
+    pauseLiveBadgeElement.textContent = isLive
+      ? translate('live')
+      : (currentPresentation?.isRecording ? translate('recording') : '');
   }
   const settingControls = document.getElementById('receiver-setting-controls');
   if (settingControls) {
@@ -1126,9 +1226,14 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
   const boundedDuration = !isLive && Number.isFinite(duration) && duration > 0
     ? duration
     : 0;
-  const percentage = boundedDuration > 0
-    ? Math.max(0, Math.min(100, (position / boundedDuration) * 100))
-    : 0;
+  const liveStart = Number(currentPresentation?.programmeStart) || 0;
+  const liveEnd = Number(currentPresentation?.programmeEnd) || 0;
+  const liveNow = Date.now() / 1000;
+  const percentage = isLive && liveEnd > liveStart
+    ? Math.max(0, Math.min(100, ((liveNow - liveStart) / (liveEnd - liveStart)) * 100))
+    : (boundedDuration > 0
+      ? Math.max(0, Math.min(100, (position / boundedDuration) * 100))
+      : 0);
   if (pauseProgressElement) {
     pauseProgressElement.style.width = `${percentage}%`;
   }
@@ -1142,7 +1247,9 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
       : (boundedDuration > 0 ? formatSeekTime(position) : presentationBadge());
   }
   if (pauseDurationElement) {
-    pauseDurationElement.textContent = boundedDuration > 0 ? formatSeekTime(boundedDuration) : '';
+    pauseDurationElement.textContent = isLive
+      ? formatProgrammeTime(liveEnd)
+      : (boundedDuration > 0 ? formatSeekTime(boundedDuration) : '');
   }
 }
 
@@ -1183,13 +1290,13 @@ function showPause(autoHide = false) {
   const wasVisible = controlsAreVisible();
   hideTransition();
   if (pauseLabelElement) {
-    pauseLabelElement.textContent = currentPresentation.subtitle || presentationBadge();
+    pauseLabelElement.textContent = presentationSecondaryText();
   }
   if (pauseTitleElement) {
     pauseTitleElement.textContent = currentPresentation.title;
   }
   if (pauseMetaElement) {
-    pauseMetaElement.textContent = currentPresentation.subtitle || presentationBadge();
+    pauseMetaElement.textContent = presentationSecondaryText();
   }
   if (pauseArtworkElement) {
     pauseArtworkElement.hidden = !currentPresentation.artworkUrl;
@@ -1200,6 +1307,7 @@ function showPause(autoHide = false) {
       pauseArtworkElement.src = currentPresentation.artworkUrl;
     }
   }
+  renderChannelInfo();
   updateControlAvailability();
   updatePauseProgress();
   updateControlLabels();

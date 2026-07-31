@@ -414,6 +414,68 @@
         display: none;
       }
 
+      #receiver-channel-info {
+        position: absolute;
+        top: 5vh;
+        left: 5vw;
+        width: min(680px, 54vw);
+      }
+
+      #receiver-channel-info[hidden] {
+        display: none;
+      }
+
+      #receiver-channel-identity {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+      }
+
+      #receiver-channel-artwork {
+        width: 72px;
+        height: 72px;
+        border-radius: 5px;
+        object-fit: contain;
+      }
+
+      #receiver-channel-name {
+        overflow: hidden;
+        color: #f7fafb;
+        font: 650 26px/1.2 'Inter', Arial, sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #receiver-channel-epg {
+        display: grid;
+        gap: 13px;
+        margin-top: 24px;
+      }
+
+      .receiver-channel-epg-row {
+        display: grid;
+        grid-template-columns: 66px minmax(0, 1fr);
+        gap: 12px;
+        color: rgba(247, 250, 251, 0.62);
+        font: 550 18px/1.25 'Inter', Arial, sans-serif;
+      }
+
+      .receiver-channel-epg-row.active {
+        color: #20c5c9;
+      }
+
+      .receiver-channel-epg-title {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #receiver-pause.channel-presentation #receiver-pause-logo,
+      #receiver-pause.channel-presentation #receiver-pause-heading,
+      #receiver-pause.channel-presentation #receiver-pause-artwork {
+        display: none;
+      }
+
       #receiver-pause-timeline {
         position: relative;
         display: grid;
@@ -438,21 +500,26 @@
       }
 
       #receiver-pause-timeline.live {
-        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-columns: auto minmax(0, 1fr) auto;
       }
 
-      #receiver-pause-timeline.live #receiver-pause-live-badge {
+      #receiver-pause-timeline.live #receiver-pause-live-badge,
+      #receiver-pause-timeline.recording #receiver-pause-live-badge {
         display: inline-flex;
         align-items: center;
       }
 
-      #receiver-pause-timeline.live #receiver-pause-duration {
+      #receiver-pause-timeline.live #receiver-pause-progress {
+        background: rgba(255, 255, 255, 0.42);
+      }
+
+      #receiver-pause-timeline.live #receiver-pause-progress::after {
         display: none;
       }
 
-      #receiver-pause-timeline.live #receiver-pause-progress-fill,
-      #receiver-pause-timeline.live #receiver-pause-progress::after {
-        display: none;
+      #receiver-pause-timeline.live #receiver-pause-progress-fill {
+        display: block;
+        background: #fff;
       }
 
       #receiver-pause-timeline[hidden],
@@ -1015,7 +1082,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-47"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-48"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -1054,6 +1121,13 @@
         <div id="receiver-pause-meta"></div>
       </div>
       <img id="receiver-pause-artwork" alt="">
+      <div id="receiver-channel-info" hidden>
+        <div id="receiver-channel-identity">
+          <img id="receiver-channel-artwork" alt="">
+          <div id="receiver-channel-name"></div>
+        </div>
+        <div id="receiver-channel-epg"></div>
+      </div>
       <div id="receiver-pause-content">
         <div id="receiver-pause-timeline">
           <div id="receiver-pause-live-badge"></div>
