@@ -362,8 +362,16 @@
         position: absolute;
         top: 5vh;
         left: 5vw;
+        display: none;
         width: min(152px, 20vw);
         height: auto;
+      }
+
+      #receiver-pause.recording-presentation #receiver-pause-logo {
+        right: 5vw;
+        left: auto;
+        display: block;
+        width: min(136px, 18vw);
       }
 
       #receiver-pause-heading {
@@ -464,13 +472,18 @@
         color: #20c5c9;
       }
 
+      .receiver-channel-epg-row.recording-title {
+        display: block;
+        color: rgba(247, 250, 251, 0.76);
+        font-size: 19px;
+      }
+
       .receiver-channel-epg-title {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      #receiver-pause.channel-presentation #receiver-pause-logo,
       #receiver-pause.channel-presentation #receiver-pause-heading,
       #receiver-pause.channel-presentation #receiver-pause-artwork {
         display: none;
@@ -500,7 +513,7 @@
       }
 
       #receiver-pause-timeline.live {
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-columns: auto minmax(0, 1fr);
       }
 
       #receiver-pause-timeline.live #receiver-pause-live-badge,
@@ -510,7 +523,7 @@
       }
 
       #receiver-pause-timeline.live #receiver-pause-progress {
-        background: rgba(255, 255, 255, 0.42);
+        background: #fff;
       }
 
       #receiver-pause-timeline.live #receiver-pause-progress::after {
@@ -518,8 +531,19 @@
       }
 
       #receiver-pause-timeline.live #receiver-pause-progress-fill {
-        display: block;
-        background: #fff;
+        display: none;
+      }
+
+      #receiver-pause-timeline.live #receiver-pause-duration {
+        display: none;
+      }
+
+      #receiver-pause-timeline.recording #receiver-pause-live-badge {
+        min-height: 0;
+        padding: 0;
+        background: transparent;
+        color: rgba(247, 250, 251, 0.78);
+        font: 650 12px/1.2 'Inter', Arial, sans-serif;
       }
 
       #receiver-pause-timeline[hidden],
@@ -1082,7 +1106,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-48"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-49"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>

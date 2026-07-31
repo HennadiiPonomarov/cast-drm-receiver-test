@@ -944,9 +944,12 @@ function formatProgrammeTime(epochSeconds) {
 }
 
 function renderChannelInfo() {
-  const isChannel = Boolean(
-    currentPresentation?.isLive || currentPresentation?.isRecording);
+  const isLive = Boolean(currentPresentation?.isLive);
+  const isRecording = Boolean(currentPresentation?.isRecording);
+  const isChannel = isLive || isRecording;
   pauseElement?.classList.toggle('channel-presentation', isChannel);
+  pauseElement?.classList.toggle('live-presentation', isLive);
+  pauseElement?.classList.toggle('recording-presentation', isRecording);
   if (!channelInfoElement) {
     return;
   }
@@ -968,6 +971,10 @@ function renderChannelInfo() {
     return;
   }
   channelEpgElement.replaceChildren();
+  channelEpgElement.hidden = isLive;
+  if (isLive) {
+    return;
+  }
   let items = currentPresentation.epgItems || [];
   let activeIndex = currentPresentation.activeEpgIndex;
   if (items.length === 0 && currentPresentation.programmeTitle) {
@@ -977,6 +984,24 @@ function renderChannelInfo() {
       end: currentPresentation.programmeEnd,
     }];
     activeIndex = 0;
+  }
+  if (isRecording) {
+    const activeItem = items[activeIndex] || items[0];
+    const programmeTitle = currentPresentation.programmeTitle
+      || activeItem?.title
+      || '';
+    if (!programmeTitle) {
+      channelEpgElement.hidden = true;
+      return;
+    }
+    const row = document.createElement('div');
+    row.className = 'receiver-channel-epg-row recording-title';
+    const title = document.createElement('span');
+    title.className = 'receiver-channel-epg-title';
+    title.textContent = programmeTitle;
+    row.append(title);
+    channelEpgElement.append(row);
+    return;
   }
   items.forEach((item, index) => {
     const row = document.createElement('div');
@@ -1247,8 +1272,9 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
       : (boundedDuration > 0 ? formatSeekTime(position) : presentationBadge());
   }
   if (pauseDurationElement) {
+    pauseDurationElement.hidden = isLive;
     pauseDurationElement.textContent = isLive
-      ? formatProgrammeTime(liveEnd)
+      ? ''
       : (boundedDuration > 0 ? formatSeekTime(boundedDuration) : '');
   }
 }
@@ -1427,12 +1453,19 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
 }
 
 function applyReceiverOwnedSubtitleStyle() {
-  applySubtitleStyle(false, false);
   let activeIds = [];
   try {
     activeIds = playerManager.getTextTracksManager().getActiveIds();
   } catch (error) {
     console.warn('[SWEET Receiver] Subtitle tracks are not ready', error);
+  }
+  applySubtitleStyle(false, false);
+  if (activeIds.length > 0) {
+    try {
+      playerManager.getTextTracksManager().setActiveByIds(activeIds);
+    } catch (error) {
+      console.warn('[SWEET Receiver] Cannot preserve subtitle track', error);
+    }
   }
   scheduleSubtitleStyleRestore(activeIds);
   notifySubtitleStyleApplied();
@@ -1458,9 +1491,18 @@ function scheduleSubtitleStyleRestore(expectedIds) {
     }
     try {
       const manager = playerManager.getTextTracksManager();
+      // CAF implementations may clear the active text track while applying a
+      // style. Apply the style first and always make track restoration the
+      // final operation. Later retries only verify the track so an async CAF
+      // style update cannot leave subtitles disabled.
+      if (attempt < 2) {
+        applySubtitleStyle(false, false);
+      }
       const enabledIds = manager.getActiveIds();
-      if (activeIds.every(id => enabledIds.some(enabledId => sameTrackId(id, enabledId)))) {
-        applySubtitleStyle(false);
+      const allExpectedTracksActive = activeIds.every(
+        id => enabledIds.some(enabledId => sameTrackId(id, enabledId)));
+      if (!allExpectedTracksActive) {
+        manager.setActiveByIds(activeIds);
       }
     } catch (error) {
       console.warn('[SWEET Receiver] Subtitle activation is not ready', error);
@@ -1515,7 +1557,8 @@ function applySubtitlePreset(preset) {
   subtitleWindowType = preset.windowType;
   subtitleEdgeType = preset.edgeType;
   subtitleEdgeColor = preset.edgeColor;
-  applySubtitleStyle();
+  subtitleStyleDirty = true;
+  applyReceiverOwnedSubtitleStyle();
 }
 
 function lockLocalSubtitleSelection(subtitleId) {
@@ -1910,7 +1953,8 @@ function applySelectedOption() {
     returnControl = 'subtitles';
   } else if (item.kind === 'subtitle-size') {
     subtitleFontScale = item.value;
-    applySubtitleStyle();
+    subtitleStyleDirty = true;
+    applyReceiverOwnedSubtitleStyle();
   } else if (item.kind === 'subtitle-preset') {
     applySubtitlePreset(item.preset);
   } else if (item.kind === 'subtitle-styling') {
