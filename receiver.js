@@ -2554,6 +2554,9 @@ function scheduleTrackSelectionRestore() {
 }
 
 function applyTrackSelection(message) {
+  if (currentPresentation?.isRecording) {
+    return;
+  }
   if (hasOwn(message, 'audioId')) {
     const audioId = Number(message.audioId);
     if (Number.isFinite(audioId) && audioId >= 0) {
