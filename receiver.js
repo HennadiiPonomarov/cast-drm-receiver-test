@@ -3056,6 +3056,25 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
     };
   }
 
+  // Older Cast implementations on Philips TVs can fail with Shaka 3016 when
+  // ABR changes HLS variants and the hardware decoder is reinitialized. The
+  // dedicated Cast URL already contains TV-compatible renditions, so keep one
+  // rendition for the lifetime of this load. Manual quality changes still
+  // work because the sender performs a new LOAD with a maxHeight restriction.
+  if (!drm.licenseUrl
+      && drm.isLive
+      && drm.castUrlSource === 'chrome_cast_url') {
+    playbackConfig.shakaConfig = {
+      ...(playbackConfig.shakaConfig || {}),
+      abr: {
+        ...((playbackConfig.shakaConfig || {}).abr || {}),
+        enabled: false,
+        useNetworkInformation: false,
+        defaultBandwidthEstimate: 4000000,
+      },
+    };
+  }
+
   return playbackConfig;
 });
 
