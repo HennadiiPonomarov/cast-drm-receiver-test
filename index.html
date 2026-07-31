@@ -419,15 +419,14 @@
 
       #receiver-channel-identity {
         display: flex;
-        align-items: flex-start;
-        gap: 18px;
+        align-items: center;
+        gap: 14px;
       }
 
       #receiver-channel-copy {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
-        padding-top: 5px;
-        text-align: center;
+        text-align: left;
       }
 
       #receiver-channel-artwork {
@@ -447,8 +446,8 @@
 
       #receiver-channel-epg {
         display: grid;
-        gap: 13px;
-        margin-top: 8px;
+        gap: 6px;
+        margin-top: 4px;
       }
 
       .receiver-channel-epg-row {
@@ -467,7 +466,7 @@
         display: block;
         color: rgba(247, 250, 251, 0.68);
         font: 500 16px/1.35 'Inter', Arial, sans-serif;
-        text-align: center;
+        text-align: left;
       }
 
       .receiver-channel-epg-title {
@@ -1098,7 +1097,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-52"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-53"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
