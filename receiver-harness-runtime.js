@@ -1,4 +1,6 @@
 (() => {
+  const nativeMediaControlsOverlay = new URL(window.location.href)
+    .searchParams.get('native-controls') === '1';
   const EVENT = {
     ERROR: 'ERROR',
     PLAYER_LOAD_COMPLETE: 'PLAYER_LOAD_COMPLETE',
@@ -225,6 +227,9 @@
   }
 
   const context = new MockContext();
+  const nativeControls = {
+    hasMediaControlsOverlay: () => Promise.resolve(nativeMediaControlsOverlay),
+  };
   const textEdge = {
     NONE: 'NONE', OUTLINE: 'OUTLINE', DROP_SHADOW: 'DROP_SHADOW',
     RAISED: 'RAISED', DEPRESSED: 'DEPRESSED',
@@ -236,6 +241,9 @@
       CastReceiverOptions: class CastReceiverOptions {},
       PlaybackConfig: class PlaybackConfig {},
       ContentProtection: {WIDEVINE: 'WIDEVINE'},
+      ui: {
+        Controls: {getInstance: () => nativeControls},
+      },
       events: {
         EventType: EVENT,
         EndedReason: {END_OF_STREAM: 'END_OF_STREAM'},
@@ -388,5 +396,10 @@
     });
   }
 
-  window.SweetCastHarness = {context, installPanel, requestFor};
+  window.SweetCastHarness = {
+    context,
+    installPanel,
+    requestFor,
+    nativeMediaControlsOverlay,
+  };
 })();

@@ -16,6 +16,11 @@ python3 -m http.server 8765
 
 Then open `http://127.0.0.1:8765/harness.html`.
 
+To emulate a receiver where CAF provides its own media-controls overlay, open
+`http://127.0.0.1:8765/harness.html?native-controls=1`. In that profile, the
+SWEET receiver leaves transport controls, menus, progress, and loading UI to
+the platform and only keeps a short content header during the transition.
+
 The panel can load movie, series, live, and recording presets. It can also
 simulate buffering, error 905, D-pad navigation, OK, Back, Play, and Pause.
 

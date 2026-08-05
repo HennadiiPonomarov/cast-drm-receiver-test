@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-controls-profile="pending">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -77,11 +77,25 @@
         --splash-size: 1px 1px;
         --font-family: 'Inter', Arial, sans-serif;
         --theme-hue: 185;
-        --progress-color: transparent;
-        --break-color: transparent;
-        --spinner-image: none;
-        --buffering-image: none;
         --next-preview-visibility: hidden;
+      }
+
+      /* Devices with the official CAF controls keep their own media UI. */
+      html[data-controls-profile='pending'] #receiver-pause,
+      html[data-controls-profile='pending'] #receiver-options,
+      html[data-controls-profile='pending'] #receiver-seek-preview,
+      html[data-controls-profile='pending'] #receiver-loader,
+      html[data-controls-profile='native'] #receiver-pause,
+      html[data-controls-profile='native'] #receiver-options,
+      html[data-controls-profile='native'] #receiver-seek-preview,
+      html[data-controls-profile='native'] #receiver-loader {
+        display: none !important;
+      }
+
+      /* Keep a short metadata header but reserve controls for the platform. */
+      html[data-controls-profile='native'] #receiver-transition-content {
+        top: 5vh;
+        bottom: auto;
       }
 
       #receiver-loader {
@@ -1097,7 +1111,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-57-i18n"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-58-adaptive-controls"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>

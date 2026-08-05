@@ -1,6 +1,12 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
+const CONTROLS_UI_PROFILE = Object.freeze({
+  PENDING: 'pending',
+  CUSTOM: 'custom',
+  NATIVE: 'native',
+});
+const CONTROLS_PROFILE_RESOLVE_TIMEOUT_MS = 1400;
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
@@ -101,6 +107,13 @@ let trackRestoreTimer = null;
 let trackRestoreToken = 0;
 let localSubtitleSelectionLock = null;
 let nativeOverlayObserver = null;
+let controlsUiProfile = CONTROLS_UI_PROFILE.PENDING;
+let controlsUiProfileResolveTimer = null;
+let pausePresentationRenderKey = '';
+let controlAvailabilityRenderKey = '';
+let optionsRenderKey = '';
+let pauseProgressRenderFrame = null;
+let pauseProgressRenderKey = '';
 let subtitleUiObservers = [];
 let subtitleUiObservedRoots = new WeakSet();
 let controlsFocusArea = 'timeline';
@@ -175,9 +188,20 @@ const SUBTITLE_STYLE_PRESETS = [
   },
 ];
 
-function suppressNativePlayerOverlay() {
+function getNativePlayerOverlay() {
   const playerShadowRoot = playerElement?.shadowRoot;
-  const nativeOverlay = playerShadowRoot?.querySelector('tv-overlay');
+  return playerShadowRoot?.querySelector('tv-overlay') || null;
+}
+
+function usesCustomControls() {
+  return controlsUiProfile === CONTROLS_UI_PROFILE.CUSTOM;
+}
+
+function suppressNativePlayerOverlay() {
+  if (!usesCustomControls()) {
+    return;
+  }
+  const nativeOverlay = getNativePlayerOverlay();
   if (!nativeOverlay) {
     return;
   }
@@ -205,16 +229,101 @@ function suppressNativePlayerOverlay() {
   }
 }
 
+function restoreNativePlayerOverlay() {
+  nativeOverlayObserver?.disconnect();
+  nativeOverlayObserver = null;
+  const nativeOverlay = getNativePlayerOverlay();
+  if (!nativeOverlay) {
+    return;
+  }
+  nativeOverlay.style.removeProperty('opacity');
+  nativeOverlay.style.removeProperty('visibility');
+  nativeOverlay.style.removeProperty('pointer-events');
+  nativeOverlay.removeAttribute('aria-hidden');
+  nativeOverlay.shadowRoot
+    ?.getElementById('sweet-overlay-visibility')
+    ?.remove();
+}
+
 function installNativePlayerOverlaySuppression() {
+  if (!usesCustomControls()) {
+    return;
+  }
   const playerShadowRoot = playerElement?.shadowRoot;
   if (!playerShadowRoot) {
     window.setTimeout(installNativePlayerOverlaySuppression, 100);
     return;
   }
-  suppressNativePlayerOverlay();
+  if (usesCustomControls()) {
+    suppressNativePlayerOverlay();
+  }
   nativeOverlayObserver?.disconnect();
   nativeOverlayObserver = new MutationObserver(suppressNativePlayerOverlay);
   nativeOverlayObserver.observe(playerShadowRoot, {childList: true, subtree: true});
+}
+
+function setControlsUiProfile(profile) {
+  if (controlsUiProfile === profile) {
+    return;
+  }
+  controlsUiProfileResolveTimer = clearTimer(controlsUiProfileResolveTimer);
+  controlsUiProfile = profile;
+  document.documentElement.dataset.controlsProfile = profile;
+
+  if (profile === CONTROLS_UI_PROFILE.NATIVE) {
+    restoreNativePlayerOverlay();
+    hidePause();
+    hideOptions();
+    hideSeekPreview();
+    hideLoader();
+    showControlsOnNextPlayback = false;
+  } else if (profile === CONTROLS_UI_PROFILE.CUSTOM) {
+    installNativePlayerOverlaySuppression();
+    if (currentPresentation) {
+      showInitialControlsIfReady(true);
+    }
+  }
+  console.info('[SWEET Receiver] Controls profile:', profile);
+}
+
+function resolveControlsUiProfile() {
+  document.documentElement.dataset.controlsProfile = CONTROLS_UI_PROFILE.PENDING;
+  const controls = cast.framework.ui?.Controls?.getInstance?.();
+  if (!controls?.hasMediaControlsOverlay) {
+    setControlsUiProfile(CONTROLS_UI_PROFILE.CUSTOM);
+    return;
+  }
+  controlsUiProfileResolveTimer = setTimeout(() => {
+    controlsUiProfileResolveTimer = null;
+    if (controlsUiProfile === CONTROLS_UI_PROFILE.PENDING) {
+      console.warn('[SWEET Receiver] Native controls detection timed out');
+      setControlsUiProfile(CONTROLS_UI_PROFILE.CUSTOM);
+    }
+  }, CONTROLS_PROFILE_RESOLVE_TIMEOUT_MS);
+
+  let overlayProbe;
+  try {
+    overlayProbe = controls.hasMediaControlsOverlay();
+  } catch (error) {
+    console.warn('[SWEET Receiver] Cannot start native controls detection', error);
+    setControlsUiProfile(CONTROLS_UI_PROFILE.CUSTOM);
+    return;
+  }
+  Promise.resolve(overlayProbe)
+    .then(hasNativeOverlay => {
+      if (controlsUiProfile !== CONTROLS_UI_PROFILE.PENDING) {
+        return;
+      }
+      setControlsUiProfile(hasNativeOverlay
+        ? CONTROLS_UI_PROFILE.NATIVE
+        : CONTROLS_UI_PROFILE.CUSTOM);
+    })
+    .catch(error => {
+      console.warn('[SWEET Receiver] Cannot detect native controls overlay', error);
+      if (controlsUiProfile === CONTROLS_UI_PROFILE.PENDING) {
+        setControlsUiProfile(CONTROLS_UI_PROFILE.CUSTOM);
+      }
+    });
 }
 
 function visitOpenRoots(root, visitor) {
@@ -785,7 +894,7 @@ function hideReceiverStatus() {
 }
 
 function setLayerVisible(element, visible) {
-  if (element) {
+  if (element && element.classList.contains('visible') !== visible) {
     element.classList.toggle('visible', visible);
   }
 }
@@ -1073,6 +1182,51 @@ function renderChannelInfo() {
   });
 }
 
+function pausePresentationKey() {
+  const presentation = currentPresentation;
+  if (!presentation) {
+    return '';
+  }
+  return JSON.stringify({
+    title: presentation.title,
+    subtitle: presentationSecondaryText(presentation),
+    artworkUrl: presentation.artworkUrl,
+    channelTitle: presentation.channelTitle,
+    programmeTitle: presentation.programmeTitle,
+    isLive: presentation.isLive,
+    isRecording: presentation.isRecording,
+    activeEpgIndex: presentation.activeEpgIndex,
+    epgItems: presentation.epgItems,
+  });
+}
+
+function updatePausePresentation() {
+  const nextKey = pausePresentationKey();
+  if (!nextKey || nextKey === pausePresentationRenderKey) {
+    return;
+  }
+  pausePresentationRenderKey = nextKey;
+  if (pauseLabelElement) {
+    pauseLabelElement.textContent = presentationSecondaryText();
+  }
+  if (pauseTitleElement) {
+    pauseTitleElement.textContent = currentPresentation.title;
+  }
+  if (pauseMetaElement) {
+    pauseMetaElement.textContent = presentationSecondaryText();
+  }
+  if (pauseArtworkElement) {
+    pauseArtworkElement.hidden = !currentPresentation.artworkUrl;
+    pauseArtworkElement.classList.toggle(
+      'channel',
+      Boolean(currentPresentation.isLive || currentPresentation.isRecording));
+    if (currentPresentation.artworkUrl) {
+      pauseArtworkElement.src = currentPresentation.artworkUrl;
+    }
+  }
+  renderChannelInfo();
+}
+
 function presentationBadge(presentation = currentPresentation) {
   if (presentation?.isLive) {
     return translate('live');
@@ -1210,6 +1364,16 @@ function updateControlAvailability() {
     subtitles: subtitleTrackCatalog.length > 0,
     quality: qualityCount > 1 || (isLive && qualityCount > 0),
   };
+  const nextRenderKey = JSON.stringify({
+    availability,
+    isLive,
+    isRecording: Boolean(currentPresentation?.isRecording),
+    seekable,
+  });
+  if (nextRenderKey === controlAvailabilityRenderKey) {
+    return;
+  }
+  controlAvailabilityRenderKey = nextRenderKey;
   CONTROL_ORDER.forEach(name => {
     const element = controlElementFor(name);
     if (element) {
@@ -1315,24 +1479,48 @@ function updatePauseProgress(positionOverride = null, durationOverride = null) {
     : (boundedDuration > 0
       ? Math.max(0, Math.min(100, (position / boundedDuration) * 100))
       : 0);
+  const roundedPercentage = Math.round(percentage * 10) / 10;
+  const timeLabel = isLive
+    ? formatClockTime()
+    : (boundedDuration > 0 ? formatSeekTime(position) : presentationBadge());
+  const durationLabel = isLive
+    ? ''
+    : (boundedDuration > 0 ? formatSeekTime(boundedDuration) : '');
+  const renderKey = [
+    roundedPercentage,
+    isLive,
+    isScrubbing,
+    timeLabel,
+    durationLabel,
+  ].join('|');
+  if (renderKey === pauseProgressRenderKey) {
+    return;
+  }
+  pauseProgressRenderKey = renderKey;
   if (pauseProgressElement) {
-    pauseProgressElement.style.width = `${percentage}%`;
+    pauseProgressElement.style.width = `${roundedPercentage}%`;
   }
   if (pauseProgressTrackElement) {
-    pauseProgressTrackElement.style.setProperty('--progress', `${percentage}%`);
+    pauseProgressTrackElement.style.setProperty('--progress', `${roundedPercentage}%`);
   }
   pauseTimelineElement?.classList.toggle('scrubbing', !isLive && isScrubbing);
   if (pauseTimeElement) {
-    pauseTimeElement.textContent = isLive
-      ? formatClockTime()
-      : (boundedDuration > 0 ? formatSeekTime(position) : presentationBadge());
+    pauseTimeElement.textContent = timeLabel;
   }
   if (pauseDurationElement) {
     pauseDurationElement.hidden = isLive;
-    pauseDurationElement.textContent = isLive
-      ? ''
-      : (boundedDuration > 0 ? formatSeekTime(boundedDuration) : '');
+    pauseDurationElement.textContent = durationLabel;
   }
+}
+
+function schedulePauseProgressUpdate() {
+  if (pauseProgressRenderFrame !== null) {
+    return;
+  }
+  pauseProgressRenderFrame = requestAnimationFrame(() => {
+    pauseProgressRenderFrame = null;
+    updatePauseProgress();
+  });
 }
 
 function updateControlLabels() {
@@ -1360,7 +1548,7 @@ function updateControlLabels() {
 }
 
 function showPause(autoHide = false) {
-  if (!currentPresentation || playbackHasError) {
+  if (!usesCustomControls() || !currentPresentation || playbackHasError) {
     return;
   }
   ensureReceiverKeyFocus();
@@ -1371,25 +1559,7 @@ function showPause(autoHide = false) {
   }
   const wasVisible = controlsAreVisible();
   hideTransition();
-  if (pauseLabelElement) {
-    pauseLabelElement.textContent = presentationSecondaryText();
-  }
-  if (pauseTitleElement) {
-    pauseTitleElement.textContent = currentPresentation.title;
-  }
-  if (pauseMetaElement) {
-    pauseMetaElement.textContent = presentationSecondaryText();
-  }
-  if (pauseArtworkElement) {
-    pauseArtworkElement.hidden = !currentPresentation.artworkUrl;
-    pauseArtworkElement.classList.toggle(
-      'channel',
-      Boolean(currentPresentation.isLive || currentPresentation.isRecording));
-    if (currentPresentation.artworkUrl) {
-      pauseArtworkElement.src = currentPresentation.artworkUrl;
-    }
-  }
-  renderChannelInfo();
+  updatePausePresentation();
   updateControlAvailability();
   updatePauseProgress();
   updateControlLabels();
@@ -1742,11 +1912,27 @@ function nearestSelectableIndex(items, index, direction = 1) {
 function renderOptions() {
   const items = optionItems();
   menuSelection = Math.max(0, Math.min(menuSelection, Math.max(0, items.length - 1)));
-  if (optionsTitleElement) {
-    optionsTitleElement.textContent = translate(
-      menuSection === 'subtitle-style' ? 'subtitleStyling' : menuSection);
+  const title = translate(menuSection === 'subtitle-style' ? 'subtitleStyling' : menuSection);
+  const renderKey = JSON.stringify({
+    section: menuSection,
+    title,
+    items: items.map(item => ({
+      id: item.id,
+      kind: item.kind,
+      label: item.label,
+      selected: item.selected,
+      sampleClass: item.sampleClass,
+      icon: item.icon,
+    })),
+  });
+  if (renderKey === optionsRenderKey) {
+    updateOptionsFocus();
+    return;
   }
-  optionsCloseElement?.classList.toggle('focused', menuFocusArea === 'close');
+  optionsRenderKey = renderKey;
+  if (optionsTitleElement) {
+    optionsTitleElement.textContent = title;
+  }
   if (optionsListElement) {
     optionsListElement.textContent = '';
     if (optionsFooterElement) {
@@ -1771,6 +1957,7 @@ function renderOptions() {
         menuFocusArea === 'list' && index === menuSelection ? 'focused' : '',
         item.selected ? 'active' : '',
       ].filter(Boolean).join(' ');
+      row.dataset.optionIndex = String(index);
       if (item.icon) {
         const icon = document.createElement('img');
         icon.className = 'receiver-option-icon';
@@ -1802,15 +1989,23 @@ function renderOptions() {
         optionsListElement.appendChild(row);
       }
     });
-    requestAnimationFrame(() => {
-      optionsElement?.querySelector('.receiver-option-row.focused')
-        ?.scrollIntoView({block: 'nearest'});
-    });
+    requestAnimationFrame(updateOptionsFocus);
   }
 }
 
+function updateOptionsFocus() {
+  optionsCloseElement?.classList.toggle('focused', menuFocusArea === 'close');
+  const focusedRow = optionsElement?.querySelector(
+    `.receiver-option-row[data-option-index="${menuSelection}"]`);
+  optionsElement?.querySelectorAll('.receiver-option-row[data-option-index]')
+    .forEach(row => row.classList.toggle(
+      'focused',
+      menuFocusArea === 'list' && row === focusedRow));
+  focusedRow?.scrollIntoView({block: 'nearest'});
+}
+
 function showOptions(section = menuSection) {
-  if (!hasOptionsForSection(section)) {
+  if (!usesCustomControls() || !hasOptionsForSection(section)) {
     return false;
   }
   menuSection = section;
@@ -1837,6 +2032,7 @@ function hideOptions() {
   optionsElement?.classList.remove('visible');
   optionsElement?.setAttribute('aria-hidden', 'true');
   menuFocusArea = 'list';
+  optionsRenderKey = '';
 }
 
 function hasOptionsForSection(section) {
@@ -1913,6 +2109,12 @@ function restorePendingControlAfterLoad(force = false) {
 }
 
 function showInitialControlsIfReady(force = false) {
+  if (!usesCustomControls()) {
+    if (controlsUiProfile === CONTROLS_UI_PROFILE.NATIVE) {
+      showControlsOnNextPlayback = false;
+    }
+    return false;
+  }
   if (!showControlsOnNextPlayback
       || pendingControlAfterLoad
       || !currentPresentation
@@ -2307,6 +2509,9 @@ function renderThumbnailCue(cue) {
 }
 
 function showSeekPreview(positionSeconds, autoHide = false, durationOverride = null) {
+  if (!usesCustomControls()) {
+    return;
+  }
   const position = Math.max(0, Number(positionSeconds) || 0);
   previewSeekPosition = position;
   seekPreviewTimer = clearTimer(seekPreviewTimer);
@@ -2352,7 +2557,7 @@ function hideSeekPreview() {
   if (seekPreviewElement) {
     seekPreviewElement.classList.remove('visible');
   }
-  if (controlsAreVisible()) {
+  if (usesCustomControls() && controlsAreVisible()) {
     updatePauseProgress();
   }
 }
@@ -2371,6 +2576,14 @@ function resetPresentationLayers() {
   cancelTrackSelectionRestore();
   seekRepeatCount = 0;
   timelineBoundsCache = null;
+  pausePresentationRenderKey = '';
+  controlAvailabilityRenderKey = '';
+  pauseProgressRenderKey = '';
+  optionsRenderKey = '';
+  if (pauseProgressRenderFrame !== null) {
+    cancelAnimationFrame(pauseProgressRenderFrame);
+    pauseProgressRenderFrame = null;
+  }
   pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
   hideEnd();
@@ -2380,6 +2593,10 @@ function resetPresentationLayers() {
 }
 
 function showLoader(label = translate('loading')) {
+  // The official CAF overlay owns the loading state on native-control devices.
+  if (controlsUiProfile === CONTROLS_UI_PROFILE.NATIVE) {
+    return;
+  }
   if (loaderLabelElement) {
     loaderLabelElement.textContent = label;
   }
@@ -2682,7 +2899,7 @@ function moveMenuSelection(direction) {
     next = (next + direction + items.length) % items.length;
     if (isSelectableOption(items[next])) {
       menuSelection = next;
-      renderOptions();
+      updateOptionsFocus();
       return;
     }
   }
@@ -2852,6 +3069,13 @@ function handleReceiverKey(event) {
     return;
   }
 
+  // Platforms with an official CAF media-controls overlay keep ownership of
+  // remote keys, focus and media-button semantics. The custom UI is only a
+  // fallback for receivers without that layer.
+  if (!usesCustomControls()) {
+    return;
+  }
+
   if (back && !isOptionsVisible() && !controlsAreVisible()) {
     return;
   }
@@ -2973,6 +3197,9 @@ function handleReceiverKey(event) {
 }
 
 function handleReceiverKeyUp(event) {
+  if (!usesCustomControls()) {
+    return;
+  }
   if (suppressBackKeyUp && isBackKeyEvent(event)) {
     consumeRemoteKey(event);
     suppressBackKeyUp = false;
@@ -3180,7 +3407,9 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   } else {
     syncSubtitleStyleState();
   }
-  suppressNativePlayerOverlay();
+  if (usesCustomControls()) {
+    suppressNativePlayerOverlay();
+  }
   hideIdle();
   hideLoader();
   hideReceiverStatus();
@@ -3288,15 +3517,15 @@ if (cast.framework.events.EventType.TIME_UPDATE) {
         showInitialControlsIfReady();
       }
     }
-    if (pauseElement?.classList.contains('visible')) {
-      updatePauseProgress();
+    if (usesCustomControls() && pauseElement?.classList.contains('visible')) {
+      schedulePauseProgressUpdate();
     }
   });
 }
 
 playerManager.addEventListener(cast.framework.events.EventType.REQUEST_SEEK, event => {
   const position = event.requestData?.currentTime;
-  if (Number.isFinite(position)) {
+  if (usesCustomControls() && Number.isFinite(position)) {
     showPause(true);
     showSeekPreview(position, true);
   }
@@ -3318,7 +3547,7 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
     } else if (message?.type === 'quality-applied' && pendingControlAfterLoad) {
       pendingControlAfterLoad.loadObserved = true;
       restorePendingControlAfterLoad(true);
-    } else if (message?.type === 'seek-preview') {
+    } else if (message?.type === 'seek-preview' && usesCustomControls()) {
       if (message.visible === false) {
         hideSeekPreview();
         scheduleControlsHide(1800);
@@ -3326,7 +3555,7 @@ context.addCustomMessageListener(TRACKS_CHANNEL, event => {
         showPause(true);
         showSeekPreview(Number(message.positionMs) / 1000);
       }
-    } else if (message?.type === 'show-options') {
+    } else if (message?.type === 'show-options' && usesCustomControls()) {
       showPause();
       showOptions(message.section || 'audio');
     }
@@ -3345,7 +3574,7 @@ options.customNamespaces = {
 };
 context.start(options);
 
-installNativePlayerOverlaySuppression();
+resolveControlsUiProfile();
 installSubtitleUiPositioning();
 hideLoader();
 showIdle();
