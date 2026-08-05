@@ -92,10 +92,42 @@
         display: none !important;
       }
 
-      /* Keep a short metadata header but reserve controls for the platform. */
+      /* Native receivers such as LG provide their own controls. Keep only the
+         SWEET content header, aligned with the custom receiver composition. */
       html[data-controls-profile='native'] #receiver-transition-content {
-        top: 5vh;
+        top: 4.5vh;
+        right: 5vw;
         bottom: auto;
+        display: block;
+        width: auto;
+        min-width: 0;
+        max-width: none;
+        text-align: center;
+      }
+
+      html[data-controls-profile='native'] #receiver-transition-artwork {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: 76px;
+        height: 76px;
+        margin: 0;
+        transform: translateY(-50%);
+      }
+
+      html[data-controls-profile='native'] #receiver-transition-copy {
+        width: min(58vw, 820px);
+        margin: 0 auto;
+      }
+
+      html[data-controls-profile='native'] #receiver-transition-title {
+        font-size: clamp(22px, 2.25vw, 34px);
+      }
+
+      html[data-controls-profile='native'] #receiver-transition-meta {
+        justify-content: center;
+        margin-top: 5px;
+        font-size: clamp(15px, 1.35vw, 20px);
       }
 
       #receiver-loader {
@@ -1109,7 +1141,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-61-native-metadata"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-62-native-header"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>

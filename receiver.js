@@ -27,6 +27,7 @@ const playerElement = document.getElementById('receiver-player');
 const transitionElement = document.getElementById('receiver-transition');
 const transitionArtworkElement = document.getElementById('receiver-transition-artwork');
 const transitionTitleElement = document.getElementById('receiver-transition-title');
+const transitionMetaElement = document.getElementById('receiver-transition-meta');
 const transitionBadgeElement = document.getElementById('receiver-transition-badge');
 const transitionSubtitleElement = document.getElementById('receiver-transition-subtitle');
 const pauseElement = document.getElementById('receiver-pause');
@@ -1312,30 +1313,66 @@ function presentationSecondaryText(presentation = currentPresentation) {
   return presentation.subtitle || presentationBadge(presentation);
 }
 
+function transitionPresentation(presentation = currentPresentation) {
+  if (!presentation) {
+    return {title: '', subtitle: '', artworkUrl: ''};
+  }
+  const isChannel = presentation.isLive || presentation.isRecording;
+  const channelTitle = String(presentation.channelTitle || '').trim();
+  const programmeTitle = String(presentation.programmeTitle || '').trim();
+  const mediaTitle = String(presentation.title || '').trim();
+  const title = isChannel
+    ? (channelTitle || mediaTitle)
+    : mediaTitle;
+
+  let subtitle = '';
+  if (presentation.isRecording) {
+    // A recording is identified by the channel, with the programme underneath.
+    subtitle = programmeTitle || (mediaTitle !== title ? mediaTitle : '');
+  } else if (presentation.isSeries) {
+    // Only series have a secondary line: season and episode supplied by sender.
+    subtitle = String(presentation.subtitle || '').trim();
+  }
+  return {title, subtitle, artworkUrl: presentation.artworkUrl || ''};
+}
+
 function hideTransition() {
   transitionTimer = clearTimer(transitionTimer);
   setLayerVisible(transitionElement, false);
 }
 
 function showTransition() {
-  if (!currentPresentation?.title) {
+  if (!currentPresentation) {
     return;
   }
   transitionTimer = clearTimer(transitionTimer);
+  const nativeControls = usesNativeControls();
+  const presentation = transitionPresentation();
+  if (!presentation.title) {
+    return;
+  }
   if (transitionTitleElement) {
-    transitionTitleElement.textContent = currentPresentation.title;
+    transitionTitleElement.textContent = presentation.title;
   }
   if (transitionBadgeElement) {
-    transitionBadgeElement.textContent = presentationBadge();
+    transitionBadgeElement.hidden = nativeControls;
+    transitionBadgeElement.textContent = nativeControls ? '' : presentationBadge();
   }
   if (transitionSubtitleElement) {
-    transitionSubtitleElement.textContent = currentPresentation.subtitle;
-    transitionSubtitleElement.hidden = !currentPresentation.subtitle;
+    transitionSubtitleElement.textContent = nativeControls
+      ? presentation.subtitle
+      : currentPresentation.subtitle;
+    transitionSubtitleElement.hidden = nativeControls
+      ? !presentation.subtitle
+      : !currentPresentation.subtitle;
+  }
+  if (transitionMetaElement) {
+    transitionMetaElement.hidden = nativeControls && !presentation.subtitle;
   }
   if (transitionArtworkElement) {
-    transitionArtworkElement.hidden = !currentPresentation.artworkUrl;
-    if (currentPresentation.artworkUrl) {
-      transitionArtworkElement.src = currentPresentation.artworkUrl;
+    transitionArtworkElement.hidden = !presentation.artworkUrl;
+    if (presentation.artworkUrl) {
+      transitionArtworkElement.src = presentation.artworkUrl;
     }
   }
   setLayerVisible(transitionElement, true);
