@@ -29,6 +29,7 @@ const transitionTitleElement = document.getElementById('receiver-transition-titl
 const transitionBadgeElement = document.getElementById('receiver-transition-badge');
 const transitionSubtitleElement = document.getElementById('receiver-transition-subtitle');
 const pauseElement = document.getElementById('receiver-pause');
+const cornerBrandElement = document.getElementById('receiver-corner-brand');
 const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
 const pauseMetaElement = document.getElementById('receiver-pause-meta');
@@ -896,6 +897,12 @@ function hideReceiverStatus() {
 function setLayerVisible(element, visible) {
   if (element && element.classList.contains('visible') !== visible) {
     element.classList.toggle('visible', visible);
+  }
+
+  // The corner brand is metadata for the custom controls, not a persistent
+  // overlay. Keep it synchronized with every control-panel show/hide path.
+  if (element === pauseElement && cornerBrandElement) {
+    cornerBrandElement.classList.toggle('visible', Boolean(visible));
   }
 }
 

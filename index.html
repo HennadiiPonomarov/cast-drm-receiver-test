@@ -130,21 +130,27 @@
         transform: translateY(0);
       }
 
-      /* Persistent product marker. Content artwork and title stay on the left,
-         so the brand remains visible without competing with the metadata. */
+      /* Product marker follows the custom control panel. Content artwork and
+         title stay on the left, so the brand does not duplicate metadata. */
       #receiver-corner-brand {
         position: fixed;
         top: 5vh;
         right: 5vw;
         z-index: 28;
-        display: block;
         width: min(132px, 17vw);
         height: auto;
+        opacity: 0;
+        visibility: hidden;
         pointer-events: none;
       }
 
-      /* The fixed corner mark replaces the per-state copies, preventing a
-         duplicate logo when a loader, idle state or end screen is displayed. */
+      #receiver-corner-brand.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      /* The controls-only corner mark replaces the per-state copies,
+         preventing a duplicate logo on loader, idle and end screens. */
       #receiver-loader-logo,
       #receiver-idle-logo,
       #receiver-end-logo {
