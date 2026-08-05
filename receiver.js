@@ -2982,8 +2982,9 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (!customData.licenseUrl && (customData.isLive || customData.isRecording)) {
-      // Clear live and catch-up streams use MPEG-TS.
+    if (!customData.licenseUrl && customData.relayHlsThroughPhone) {
+      // Sender-relayed HLS is MPEG-TS. Direct chrome_cast_url playlists can
+      // have another segment format, so CAF must autodetect them.
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
     }
