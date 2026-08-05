@@ -105,9 +105,9 @@
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        background:
-          radial-gradient(circle at 50% 50%, rgba(7, 22, 27, 0.18), transparent 32%),
-          rgba(0, 0, 0, 0.36);
+        /* Loading must not dim active video or metadata. The triangle is the
+           only playback-loading indication after the delayed threshold. */
+        background: transparent;
         will-change: opacity;
         transition: opacity 460ms cubic-bezier(0.22, 1, 0.36, 1),
           visibility 0s linear 460ms;
@@ -130,29 +130,9 @@
         transform: translateY(0);
       }
 
-      /* Product marker follows the custom control panel. Content artwork and
-         title stay on the left, so the brand does not duplicate metadata. */
-      #receiver-corner-brand {
-        position: fixed;
-        top: 5vh;
-        right: 5vw;
-        z-index: 28;
-        width: min(132px, 17vw);
-        height: auto;
-        opacity: 0;
-        visibility: hidden;
-        pointer-events: none;
-      }
-
-      #receiver-corner-brand.visible {
-        opacity: 1;
-        visibility: visible;
-      }
-
-      /* The controls-only corner mark replaces the per-state copies,
-         preventing a duplicate logo on loader, idle and end screens. */
+      /* The product mark is reserved for the idle receiver state. Playback,
+         loading and controls use the content metadata only. */
       #receiver-loader-logo,
-      #receiver-idle-logo,
       #receiver-end-logo {
         display: none;
       }
@@ -373,9 +353,27 @@
 
       #receiver-pause {
         z-index: 19;
-        background:
-          linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0, transparent 26%),
-          linear-gradient(0deg, rgba(0, 0, 0, 0.94) 0, rgba(0, 0, 0, 0.62) 18%, transparent 30%);
+        background: transparent;
+      }
+
+      /* Custom controls need a little contrast, not a full-screen dark veil.
+         Keep content title and artwork untouched above the controls. */
+      #receiver-pause::before {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: min(35vh, 280px);
+        background: linear-gradient(0deg, rgba(0, 0, 0, 0.50) 0, rgba(0, 0, 0, 0.22) 58%, transparent 100%);
+        content: '';
+        pointer-events: none;
+      }
+
+      #receiver-pause-content,
+      #receiver-pause-heading,
+      #receiver-pause-artwork,
+      #receiver-channel-info {
+        z-index: 1;
       }
 
       #receiver-pause-content {
@@ -1122,11 +1120,10 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-58-adaptive-controls"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-59-controls-only-dim"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
-    <img id="receiver-corner-brand" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
     <div id="receiver-idle" class="visible" aria-hidden="true">
       <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-idle-content">
