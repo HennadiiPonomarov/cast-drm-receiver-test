@@ -353,20 +353,9 @@
 
       #receiver-pause {
         z-index: 19;
-        background: transparent;
-      }
-
-      /* Custom controls need a little contrast, not a full-screen dark veil.
-         Keep content title and artwork untouched above the controls. */
-      #receiver-pause::before {
-        position: absolute;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        height: min(35vh, 280px);
-        background: linear-gradient(0deg, rgba(0, 0, 0, 0.50) 0, rgba(0, 0, 0, 0.22) 58%, transparent 100%);
-        content: '';
-        pointer-events: none;
+        /* Mirrors the SmartTV control bar: one uniform fullscreen dim layer.
+           The player remains visible; all control content stays crisp above it. */
+        background: rgba(0, 0, 0, 0.5);
       }
 
       #receiver-pause-content,
@@ -1120,7 +1109,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-59-controls-only-dim"></script>
+    <script defer src="receiver.js?v=receiver-smarttv-ui-60-smarttv-dim"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
