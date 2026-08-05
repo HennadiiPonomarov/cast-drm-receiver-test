@@ -10,6 +10,7 @@ const CONTROLS_PROFILE_RESOLVE_TIMEOUT_MS = 1400;
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
+const NATIVE_METADATA_VISIBLE_MS = 5000;
 const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
@@ -107,6 +108,8 @@ let trackRestoreTimer = null;
 let trackRestoreToken = 0;
 let localSubtitleSelectionLock = null;
 let nativeOverlayObserver = null;
+let nativeMetadataObserver = null;
+let nativeMetadataRaf = null;
 let controlsUiProfile = CONTROLS_UI_PROFILE.PENDING;
 let controlsUiProfileResolveTimer = null;
 let pausePresentationRenderKey = '';
@@ -197,6 +200,10 @@ function usesCustomControls() {
   return controlsUiProfile === CONTROLS_UI_PROFILE.CUSTOM;
 }
 
+function usesNativeControls() {
+  return controlsUiProfile === CONTROLS_UI_PROFILE.NATIVE;
+}
+
 function suppressNativePlayerOverlay() {
   if (!usesCustomControls()) {
     return;
@@ -245,6 +252,64 @@ function restoreNativePlayerOverlay() {
     ?.remove();
 }
 
+function clearNativeMetadataObserver() {
+  nativeMetadataObserver?.disconnect();
+  nativeMetadataObserver = null;
+  if (nativeMetadataRaf !== null) {
+    cancelAnimationFrame(nativeMetadataRaf);
+    nativeMetadataRaf = null;
+  }
+}
+
+function showNativeMetadataHeader(delay = NATIVE_METADATA_VISIBLE_MS) {
+  if (!usesNativeControls() || !currentPresentation?.title) {
+    return;
+  }
+  showTransition();
+  scheduleTransitionHide(delay);
+}
+
+function inspectNativeOverlayMutation() {
+  nativeMetadataRaf = null;
+  if (!usesNativeControls()) {
+    return;
+  }
+  const nativeOverlay = getNativePlayerOverlay();
+  if (!nativeOverlay) {
+    return;
+  }
+  const style = window.getComputedStyle(nativeOverlay);
+  const isVisible = style.display !== 'none'
+    && style.visibility !== 'hidden'
+    && Number(style.opacity || 1) > 0;
+  if (isVisible) {
+    showNativeMetadataHeader();
+  }
+}
+
+function installNativeMetadataObserver() {
+  clearNativeMetadataObserver();
+  if (!usesNativeControls() || !currentPresentation) {
+    return;
+  }
+  const playerShadowRoot = playerElement?.shadowRoot;
+  const nativeOverlay = getNativePlayerOverlay();
+  if (!playerShadowRoot || !nativeOverlay) {
+    window.setTimeout(installNativeMetadataObserver, 250);
+    return;
+  }
+  nativeMetadataObserver = new MutationObserver(() => {
+    if (nativeMetadataRaf === null) {
+      nativeMetadataRaf = requestAnimationFrame(inspectNativeOverlayMutation);
+    }
+  });
+  nativeMetadataObserver.observe(nativeOverlay, {
+    attributes: true,
+    attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
+  });
+  inspectNativeOverlayMutation();
+}
+
 function installNativePlayerOverlaySuppression() {
   if (!usesCustomControls()) {
     return;
@@ -277,7 +342,10 @@ function setControlsUiProfile(profile) {
     hideSeekPreview();
     hideLoader();
     showControlsOnNextPlayback = false;
+    installNativeMetadataObserver();
+    showNativeMetadataHeader();
   } else if (profile === CONTROLS_UI_PROFILE.CUSTOM) {
+    clearNativeMetadataObserver();
     installNativePlayerOverlaySuppression();
     if (currentPresentation) {
       showInitialControlsIfReady(true);
@@ -3253,7 +3321,12 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   resetPresentationLayers();
   updateControlAvailability();
   hideIdle();
-  hideTransition();
+  if (usesNativeControls()) {
+    installNativeMetadataObserver();
+    showNativeMetadataHeader();
+  } else {
+    hideTransition();
+  }
   loadThumbnailCues(currentPresentation.thumbnailsPlaylistUrl, {
     imageUrl: currentPresentation.thumbnailImageUrl,
     interval: currentPresentation.thumbnailInterval,
@@ -3413,7 +3486,11 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideIdle();
   hideLoader();
   hideReceiverStatus();
-  hideTransition();
+  if (usesNativeControls()) {
+    showNativeMetadataHeader();
+  } else {
+    hideTransition();
+  }
   sendTrackCatalog();
   showInitialControlsIfReady();
 });
@@ -3454,6 +3531,10 @@ function handlePlaybackPause() {
     hidePause();
     return;
   }
+  if (usesNativeControls()) {
+    showNativeMetadataHeader();
+    return;
+  }
   if (playbackStopped
       || playerManager.getPlayerState() === cast.framework.messages.PlayerState.IDLE) {
     hidePause();
@@ -3475,6 +3556,11 @@ function handlePlaybackPlaying() {
   }
   scheduleTrackSelectionRestore();
   hideLoader();
+  if (usesNativeControls()) {
+    showNativeMetadataHeader();
+    hideEnd();
+    return;
+  }
   if (restorePendingControlAfterLoad(true)) {
     hideEnd();
     return;
