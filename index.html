@@ -142,18 +142,46 @@
         transform: translate(-50%, -50%);
       }
 
-      .receiver-loader-spinner {
-        width: 28px;
-        height: 28px;
-        box-sizing: border-box;
-        border: 3px solid rgba(32, 197, 201, 0.25);
-        border-top-color: #20c5c9;
-        border-radius: 50%;
-        animation: sweet-loader-spin 820ms linear infinite;
+      /* The same outlined play triangle used by the SmartTV welcome loader.
+         It is inline rather than a Lottie runtime so it also works on older CAF receivers. */
+      .sweet-triangle-loader {
+        width: 58px;
+        height: 62px;
+        filter: drop-shadow(0 3px 12px rgba(255, 255, 255, 0.14));
       }
 
-      @keyframes sweet-loader-spin {
-        to { transform: rotate(360deg); }
+      .sweet-triangle-loader svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+      }
+
+      .sweet-triangle-loader path {
+        fill: none;
+        stroke: #fff;
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-dasharray: 372;
+        animation: sweet-triangle-draw 2s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+      }
+
+      .sweet-triangle-loader .sweet-triangle-trail {
+        opacity: 0.72;
+        animation-name: sweet-triangle-trail;
+      }
+
+      @keyframes sweet-triangle-draw {
+        0%, 48% { stroke-dashoffset: 372; opacity: 0.2; }
+        52%, 92% { opacity: 1; }
+        100% { stroke-dashoffset: 0; opacity: 0.2; }
+      }
+
+      @keyframes sweet-triangle-trail {
+        0% { stroke-dashoffset: 0; opacity: 0.68; }
+        48% { opacity: 0.2; }
+        100% { stroke-dashoffset: -372; opacity: 0.08; }
       }
 
       #receiver-idle {
@@ -186,39 +214,9 @@
         transform: translate(-50%, -50%);
       }
 
-      .receiver-idle-pulse {
-        position: relative;
-        width: 50px;
-        height: 50px;
-        border: 2px solid rgba(32, 197, 201, 0.72);
-        border-radius: 50%;
-        box-shadow: 0 0 28px rgba(32, 197, 201, 0.12);
-      }
-
-      .receiver-idle-pulse::before,
-      .receiver-idle-pulse::after {
-        content: '';
-        position: absolute;
-        inset: -2px;
-        border: 2px solid rgba(32, 197, 201, 0.36);
-        border-radius: 50%;
-        animation: sweet-idle-pulse 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
-      }
-
-      .receiver-idle-pulse::after {
-        animation-delay: 1.4s;
-      }
-
-      .receiver-idle-play {
-        position: absolute;
-        top: 50%;
-        left: 52%;
-        width: 0;
-        height: 0;
-        border-top: 8px solid transparent;
-        border-bottom: 8px solid transparent;
-        border-left: 13px solid #20c5c9;
-        transform: translate(-50%, -50%);
+      #receiver-idle-content .sweet-triangle-loader {
+        width: 80px;
+        height: 84px;
       }
 
       #receiver-idle-label {
@@ -227,18 +225,6 @@
         font: 500 18px/1.4 'Inter', Arial, sans-serif;
         letter-spacing: 0;
         white-space: nowrap;
-      }
-
-      @keyframes sweet-idle-pulse {
-        0% {
-          opacity: 0;
-          transform: scale(0.9);
-        }
-        35% { opacity: 0.5; }
-        100% {
-          opacity: 0;
-          transform: scale(1.75);
-        }
       }
 
       #receiver-status {
@@ -1118,8 +1104,11 @@
     <div id="receiver-idle" class="visible" aria-hidden="true">
       <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-idle-content">
-        <div class="receiver-idle-pulse">
-          <span class="receiver-idle-play"></span>
+        <div class="sweet-triangle-loader" aria-hidden="true">
+          <svg viewBox="0 0 118 125" focusable="false">
+            <path d="M19.3 5.7 17 4.4C9.4.3 3 5.3 3 15.5l.8 94.3c0 10.3 6.4 14.8 14 10.7l91.4-51.3c8-4.5 7.6-11.5 0-15.6L17 4.4" />
+            <path class="sweet-triangle-trail" d="M19.3 5.7 17 4.4C9.4.3 3 5.3 3 15.5l.8 94.3c0 10.3 6.4 14.8 14 10.7l91.4-51.3c8-4.5 7.6-11.5 0-15.6L17 4.4" />
+          </svg>
         </div>
         <p id="receiver-idle-label"></p>
       </div>
@@ -1127,7 +1116,12 @@
     <div id="receiver-loader" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
       <div id="receiver-loader-activity">
-        <div class="receiver-loader-spinner"></div>
+        <div class="sweet-triangle-loader" aria-hidden="true">
+          <svg viewBox="0 0 118 125" focusable="false">
+            <path d="M19.3 5.7 17 4.4C9.4.3 3 5.3 3 15.5l.8 94.3c0 10.3 6.4 14.8 14 10.7l91.4-51.3c8-4.5 7.6-11.5 0-15.6L17 4.4" />
+            <path class="sweet-triangle-trail" d="M19.3 5.7 17 4.4C9.4.3 3 5.3 3 15.5l.8 94.3c0 10.3 6.4 14.8 14 10.7l91.4-51.3c8-4.5 7.6-11.5 0-15.6L17 4.4" />
+          </svg>
+        </div>
       </div>
     </div>
     <div id="receiver-transition" class="receiver-layer" aria-hidden="true">
