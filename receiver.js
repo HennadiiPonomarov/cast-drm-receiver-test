@@ -3376,13 +3376,9 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (customData.licenseUrl) {
-      // National Geographic and the DRM VOD streams are HLS master playlists
-      // pointing at SAMPLE-AES fMP4 media playlists. Without this, CAF falls
-      // back to TS parsing on some receivers and fails with LOAD 905.
-      media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
-      media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
-    } else if (customData.relayHlsThroughPhone) {
+    if (!customData.licenseUrl && customData.relayHlsThroughPhone) {
+      // Sender-relayed HLS uses MPEG-TS. Direct provider playlists retain CAF
+      // autodetection because DRM and non-DRM sources use different packaging.
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
     }
