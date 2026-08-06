@@ -1022,6 +1022,17 @@ function hasOwn(object, key) {
   return Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
 }
 
+// Sender-owned playback information is intentionally namespaced. Some native
+// Cast implementations render recognised top-level customData names (title,
+// subtitle, channelTitle) in their own overlay. The Custom Receiver unwraps
+// the data before using it, while native controls only receive artwork.
+function sweetPlaybackData(value) {
+  const data = value && typeof value === 'object' ? value : {};
+  return data.sweetPlayback && typeof data.sweetPlayback === 'object'
+    ? data.sweetPlayback
+    : data;
+}
+
 function contentKeyFor(media, customData = {}) {
   const explicitKey = customData.contentKey
     || customData.url
@@ -3339,7 +3350,8 @@ window.addEventListener('resize', () => {
 // CMAF/fMP4 SAMPLE-AES segments.
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
-  const customData = media?.customData || loadRequest.customData || {};
+  const customData = sweetPlaybackData(
+    media?.customData || loadRequest.customData || {});
   controlsGeneration += 1;
   ensureReceiverKeyFocus();
   playbackStopped = false;
@@ -3416,7 +3428,8 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   hideError();
   hideEnd();
   showLoader();
-  const drm = loadRequest.media?.customData || loadRequest.customData || {};
+  const drm = sweetPlaybackData(
+    loadRequest.media?.customData || loadRequest.customData || {});
 
   // A PlaybackConfig can be reused between loads. Clear the DRM-specific
   // values first so a clear channel cannot inherit a prior movie's license.
