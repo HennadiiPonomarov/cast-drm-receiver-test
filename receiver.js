@@ -3327,8 +3327,9 @@ window.addEventListener('resize', () => {
   }
 });
 
-// The live and catch-up playlists use MPEG-TS HLS segments. Keep the format
-// explicit for receivers that do not infer it reliably from the playlist.
+// HLS needs explicit segment packaging on a number of Cast implementations.
+// Clear streams relayed by the sender are MPEG-TS; SWEET Widevine HLS uses
+// CMAF/fMP4 SAMPLE-AES segments.
 playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, loadRequest => {
   const media = loadRequest.media;
   const customData = media?.customData || loadRequest.customData || {};
@@ -3375,9 +3376,13 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (!customData.licenseUrl && customData.relayHlsThroughPhone) {
-      // Sender-relayed HLS is MPEG-TS. Direct chrome_cast_url playlists can
-      // have another segment format, so CAF must autodetect them.
+    if (customData.licenseUrl) {
+      // National Geographic and the DRM VOD streams are HLS master playlists
+      // pointing at SAMPLE-AES fMP4 media playlists. Without this, CAF falls
+      // back to TS parsing on some receivers and fails with LOAD 905.
+      media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
+      media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+    } else if (customData.relayHlsThroughPhone) {
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
     }
