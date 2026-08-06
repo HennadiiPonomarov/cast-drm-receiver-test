@@ -262,12 +262,10 @@ function clearNativeMetadataObserver() {
   }
 }
 
-function showNativeMetadataHeader(delay = NATIVE_METADATA_VISIBLE_MS) {
-  if (!usesNativeControls() || !currentPresentation?.title) {
-    return;
-  }
-  showTransition();
-  scheduleTransitionHide(delay);
+function showNativeMetadataHeader() {
+  // LG/webOS owns the visible metadata in the native player overlay.
+  // Rendering the receiver header here duplicates the title and badge.
+  hideTransition();
 }
 
 function inspectNativeOverlayMutation() {
@@ -338,13 +336,13 @@ function setControlsUiProfile(profile) {
 
   if (profile === CONTROLS_UI_PROFILE.NATIVE) {
     restoreNativePlayerOverlay();
+    clearNativeMetadataObserver();
     hidePause();
     hideOptions();
     hideSeekPreview();
     hideLoader();
     showControlsOnNextPlayback = false;
-    installNativeMetadataObserver();
-    showNativeMetadataHeader();
+    hideTransition();
   } else if (profile === CONTROLS_UI_PROFILE.CUSTOM) {
     clearNativeMetadataObserver();
     installNativePlayerOverlaySuppression();
@@ -1360,11 +1358,12 @@ function hideTransition() {
 }
 
 function showTransition() {
-  if (!currentPresentation) {
+  if (!currentPresentation || usesNativeControls()) {
+    // Native receivers render their own metadata; the transition is custom UI.
+    hideTransition();
     return;
   }
   transitionTimer = clearTimer(transitionTimer);
-  const nativeControls = usesNativeControls();
   const presentation = transitionPresentation();
   if (!presentation.title) {
     return;
@@ -1373,19 +1372,15 @@ function showTransition() {
     transitionTitleElement.textContent = presentation.title;
   }
   if (transitionBadgeElement) {
-    transitionBadgeElement.hidden = nativeControls;
-    transitionBadgeElement.textContent = nativeControls ? '' : presentationBadge();
+    transitionBadgeElement.hidden = false;
+    transitionBadgeElement.textContent = presentationBadge();
   }
   if (transitionSubtitleElement) {
-    transitionSubtitleElement.textContent = nativeControls
-      ? presentation.subtitle
-      : currentPresentation.subtitle;
-    transitionSubtitleElement.hidden = nativeControls
-      ? !presentation.subtitle
-      : !currentPresentation.subtitle;
+    transitionSubtitleElement.textContent = currentPresentation.subtitle;
+    transitionSubtitleElement.hidden = !currentPresentation.subtitle;
   }
   if (transitionMetaElement) {
-    transitionMetaElement.hidden = nativeControls && !presentation.subtitle;
+    transitionMetaElement.hidden = false;
   }
   if (transitionArtworkElement) {
     transitionArtworkElement.hidden = !presentation.artworkUrl;
