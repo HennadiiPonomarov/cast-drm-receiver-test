@@ -1071,7 +1071,10 @@ function normalizedQualityOptions(options) {
 
 function presentationFor(media, customData = {}) {
   const metadata = media?.metadata || {};
-  const title = metadata.title || customData.title || '';
+  // Standard MediaMetadata is deliberately artwork-only so native Cast
+  // overlays do not render duplicated labels. Custom Receiver presentation
+  // therefore takes its complete copy from customData.
+  const title = customData.title || metadata.title || '';
   const contentKey = contentKeyFor(media, customData);
   const previousPresentation = currentPresentation?.contentKey === contentKey
     ? currentPresentation
@@ -1097,9 +1100,13 @@ function presentationFor(media, customData = {}) {
   return {
     contentKey,
     title,
-    subtitle: metadata.subtitle || customData.subtitle || previousPresentation?.subtitle || '',
-    artworkUrl: metadataImage(metadata)
-      || secureMediaUrl(customData.artworkUrl || '')
+    subtitle: customData.seriesSubtitle
+      || customData.subtitle
+      || metadata.subtitle
+      || previousPresentation?.subtitle
+      || '',
+    artworkUrl: secureMediaUrl(customData.artworkUrl || '')
+      || metadataImage(metadata)
       || previousPresentation?.artworkUrl
       || '',
     isLive: hasOwn(customData, 'isLive')
