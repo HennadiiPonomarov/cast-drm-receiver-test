@@ -10,7 +10,6 @@ const CONTROLS_PROFILE_RESOLVE_TIMEOUT_MS = 1400;
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
-const NATIVE_METADATA_VISIBLE_MS = 5000;
 const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
@@ -78,7 +77,7 @@ const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
 let loaderDelayTimer = null;
 let transitionTimer = null;
-let nativeHeaderTimer = null;
+let nativeHeaderVisibilityTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
 let playbackStopped = false;
@@ -268,18 +267,42 @@ function clearNativeMetadataObserver() {
 }
 
 function hideNativeMetadataHeader() {
-  nativeHeaderTimer = clearTimer(nativeHeaderTimer);
+  nativeHeaderVisibilityTimer = clearTimer(nativeHeaderVisibilityTimer);
   setLayerVisible(nativeHeaderElement, false);
 }
 
-function showNativeMetadataHeader(delay = NATIVE_METADATA_VISIBLE_MS) {
+function isNativeOverlayVisible() {
+  const nativeOverlay = getNativePlayerOverlay();
+  if (!nativeOverlay) {
+    return false;
+  }
+  const style = window.getComputedStyle(nativeOverlay);
+  return style.display !== 'none'
+    && style.visibility !== 'hidden'
+    && Number(style.opacity || 1) > 0;
+}
+
+function watchNativeOverlayVisibility() {
+  nativeHeaderVisibilityTimer = clearTimer(nativeHeaderVisibilityTimer);
+  if (!usesNativeControls() || !nativeHeaderElement?.classList.contains('visible')) {
+    return;
+  }
+  nativeHeaderVisibilityTimer = setTimeout(() => {
+    if (isNativeOverlayVisible()) {
+      watchNativeOverlayVisibility();
+    } else {
+      hideNativeMetadataHeader();
+    }
+  }, 120);
+}
+
+function showNativeMetadataHeader() {
   if (!usesNativeControls() || !currentPresentation || !nativeHeaderElement) {
     hideNativeMetadataHeader();
     return;
   }
 
   hideTransition();
-  nativeHeaderTimer = clearTimer(nativeHeaderTimer);
   const presentation = transitionPresentation();
   if (!presentation.title) {
     hideNativeMetadataHeader();
@@ -303,9 +326,7 @@ function showNativeMetadataHeader(delay = NATIVE_METADATA_VISIBLE_MS) {
     }
   }
   setLayerVisible(nativeHeaderElement, true);
-  if (delay > 0) {
-    nativeHeaderTimer = setTimeout(hideNativeMetadataHeader, delay);
-  }
+  watchNativeOverlayVisibility();
 }
 
 function inspectNativeOverlayMutation() {
@@ -313,15 +334,7 @@ function inspectNativeOverlayMutation() {
   if (!usesNativeControls()) {
     return;
   }
-  const nativeOverlay = getNativePlayerOverlay();
-  if (!nativeOverlay) {
-    return;
-  }
-  const style = window.getComputedStyle(nativeOverlay);
-  const isVisible = style.display !== 'none'
-    && style.visibility !== 'hidden'
-    && Number(style.opacity || 1) > 0;
-  if (isVisible) {
+  if (isNativeOverlayVisible()) {
     showNativeMetadataHeader();
   } else {
     hideNativeMetadataHeader();
@@ -344,8 +357,10 @@ function installNativeMetadataObserver() {
       nativeMetadataRaf = requestAnimationFrame(inspectNativeOverlayMutation);
     }
   });
-  nativeMetadataObserver.observe(nativeOverlay, {
+  nativeMetadataObserver.observe(playerShadowRoot, {
     attributes: true,
+    childList: true,
+    subtree: true,
     attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
   });
   inspectNativeOverlayMutation();
@@ -387,7 +402,6 @@ function setControlsUiProfile(profile) {
     hideTransition();
     if (currentPresentation) {
       installNativeMetadataObserver();
-      showNativeMetadataHeader();
     }
   } else if (profile === CONTROLS_UI_PROFILE.CUSTOM) {
     clearNativeMetadataObserver();
@@ -3423,7 +3437,6 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   hideIdle();
   if (usesNativeControls()) {
     installNativeMetadataObserver();
-    showNativeMetadataHeader();
   } else {
     hideTransition();
   }
@@ -3588,7 +3601,7 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideLoader();
   hideReceiverStatus();
   if (usesNativeControls()) {
-    showNativeMetadataHeader();
+    inspectNativeOverlayMutation();
   } else {
     hideTransition();
   }
@@ -3633,7 +3646,7 @@ function handlePlaybackPause() {
     return;
   }
   if (usesNativeControls()) {
-    showNativeMetadataHeader();
+    inspectNativeOverlayMutation();
     return;
   }
   if (playbackStopped
@@ -3658,7 +3671,7 @@ function handlePlaybackPlaying() {
   scheduleTrackSelectionRestore();
   hideLoader();
   if (usesNativeControls()) {
-    showNativeMetadataHeader();
+    inspectNativeOverlayMutation();
     hideEnd();
     return;
   }

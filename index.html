@@ -265,7 +265,8 @@
       }
 
       #receiver-native-header {
-        z-index: 21;
+        /* Keep SWEET metadata above the OEM media-control dimmer. */
+        z-index: 40;
       }
 
       #receiver-native-header-content {
@@ -295,10 +296,10 @@
 
       #receiver-native-header[data-layout='movie'] #receiver-native-header-copy {
         position: absolute;
-        top: 50%;
+        /* Align the title with the top edge of the movie poster. */
+        top: 0;
         left: 18vw;
         right: 18vw;
-        transform: translateY(-50%);
         text-align: center;
       }
 
@@ -1208,7 +1209,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-native-header-66"></script>
+    <script defer src="receiver.js?v=receiver-native-header-sync-67"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
