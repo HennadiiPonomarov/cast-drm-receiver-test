@@ -127,7 +127,6 @@
       }
 
       #receiver-loader-logo,
-      #receiver-idle-logo,
       #receiver-end-logo {
         position: absolute;
         top: 5vh;
@@ -166,12 +165,6 @@
         animation: sweet-loader-spin 820ms linear infinite;
       }
 
-      #receiver-idle-content .receiver-loader-spinner {
-        width: 44px;
-        height: 44px;
-        border-width: 4px;
-      }
-
       @keyframes sweet-loader-spin {
         to { transform: rotate(360deg); }
       }
@@ -195,23 +188,24 @@
         transition-delay: 0s;
       }
 
-      #receiver-idle-content {
+      /* Receiver launch: keep the waiting state quiet. The logo fades in while
+         the sender has not selected any content yet. */
+      #receiver-idle-logo {
         position: absolute;
         top: 50%;
         left: 50%;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 20px;
-        transform: translate(-50%, -50%);
+        width: min(312px, 48vw);
+        height: auto;
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.94);
+        transition: opacity 2s cubic-bezier(0.22, 1, 0.36, 1),
+          transform 2s cubic-bezier(0.22, 1, 0.36, 1);
+        will-change: opacity, transform;
       }
 
-      #receiver-idle-label {
-        margin: 0;
-        color: rgba(244, 248, 250, 0.72);
-        font: 500 18px/1.4 'Inter', Arial, sans-serif;
-        letter-spacing: 0;
-        white-space: nowrap;
+      #receiver-idle.visible #receiver-idle-logo {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
       }
 
       #receiver-status {
@@ -1209,16 +1203,12 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-native-header-sync-67"></script>
+    <script defer src="receiver.js?v=receiver-idle-brand-68"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
     <div id="receiver-idle" class="visible" aria-hidden="true">
       <img id="receiver-idle-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">
-      <div id="receiver-idle-content">
-        <div class="receiver-loader-spinner" aria-hidden="true"></div>
-        <p id="receiver-idle-label"></p>
-      </div>
     </div>
     <div id="receiver-loader" aria-hidden="true">
       <img id="receiver-loader-logo" src="assets/sweet-tv-logo-light.svg" alt="SWEET.TV">

@@ -21,7 +21,6 @@ const statusElement = document.getElementById('receiver-status');
 const loaderElement = document.getElementById('receiver-loader');
 const loaderLabelElement = document.getElementById('receiver-loader-label');
 const idleElement = document.getElementById('receiver-idle');
-const idleLabelElement = document.getElementById('receiver-idle-label');
 const playerElement = document.getElementById('receiver-player');
 const transitionElement = document.getElementById('receiver-transition');
 const transitionArtworkElement = document.getElementById('receiver-transition-artwork');
@@ -2801,9 +2800,6 @@ function showIdle() {
   if (idleTimer !== null) {
     clearTimeout(idleTimer);
     idleTimer = null;
-  }
-  if (idleLabelElement) {
-    idleLabelElement.textContent = translate('waiting');
   }
   hideTransition();
   hidePause();
