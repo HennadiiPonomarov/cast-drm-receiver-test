@@ -1092,6 +1092,22 @@ function sweetPlaybackData(value) {
     : data;
 }
 
+function applyExplicitHlsPackaging(media, customData) {
+  const segmentFormat = String(customData?.hlsSegmentFormat || '').toUpperCase();
+  const videoSegmentFormat = String(customData?.hlsVideoSegmentFormat || '').toUpperCase();
+  if (segmentFormat === 'FMP4' && videoSegmentFormat === 'FMP4') {
+    media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
+    media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+    return true;
+  }
+  if (segmentFormat === 'TS' && videoSegmentFormat === 'MPEG2_TS') {
+    media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
+    media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
+    return true;
+  }
+  return false;
+}
+
 function contentKeyFor(media, customData = {}) {
   const explicitKey = customData.contentKey
     || customData.url
@@ -3471,9 +3487,10 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
     media.duration = -1;
   }
   if (media?.contentType?.toLowerCase().includes('mpegurl')) {
-    if (!customData.licenseUrl && customData.relayHlsThroughPhone) {
-      // Sender-relayed HLS uses MPEG-TS. Direct provider playlists retain CAF
-      // autodetection because DRM and non-DRM sources use different packaging.
+    const hasExplicitHlsPackaging = applyExplicitHlsPackaging(media, customData);
+    if (!hasExplicitHlsPackaging && !customData.licenseUrl && customData.relayHlsThroughPhone) {
+      // Sender-relayed HLS uses MPEG-TS. Direct provider playlists use packaging
+      // explicitly detected by the sender; CAF autodetection remains the fallback.
       media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
       media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
     }
