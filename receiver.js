@@ -30,6 +30,10 @@ const transitionTitleElement = document.getElementById('receiver-transition-titl
 const transitionMetaElement = document.getElementById('receiver-transition-meta');
 const transitionBadgeElement = document.getElementById('receiver-transition-badge');
 const transitionSubtitleElement = document.getElementById('receiver-transition-subtitle');
+const nativeHeaderElement = document.getElementById('receiver-native-header');
+const nativeHeaderArtworkElement = document.getElementById('receiver-native-header-artwork');
+const nativeHeaderTitleElement = document.getElementById('receiver-native-header-title');
+const nativeHeaderSubtitleElement = document.getElementById('receiver-native-header-subtitle');
 const pauseElement = document.getElementById('receiver-pause');
 const pauseLabelElement = document.getElementById('receiver-pause-label');
 const pauseTitleElement = document.getElementById('receiver-pause-title');
@@ -74,6 +78,7 @@ const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
 let loaderDelayTimer = null;
 let transitionTimer = null;
+let nativeHeaderTimer = null;
 let seekPreviewTimer = null;
 let playbackHasError = false;
 let playbackStopped = false;
@@ -262,10 +267,45 @@ function clearNativeMetadataObserver() {
   }
 }
 
-function showNativeMetadataHeader() {
-  // LG/webOS owns the visible metadata in the native player overlay.
-  // Rendering the receiver header here duplicates the title and badge.
+function hideNativeMetadataHeader() {
+  nativeHeaderTimer = clearTimer(nativeHeaderTimer);
+  setLayerVisible(nativeHeaderElement, false);
+}
+
+function showNativeMetadataHeader(delay = NATIVE_METADATA_VISIBLE_MS) {
+  if (!usesNativeControls() || !currentPresentation || !nativeHeaderElement) {
+    hideNativeMetadataHeader();
+    return;
+  }
+
   hideTransition();
+  nativeHeaderTimer = clearTimer(nativeHeaderTimer);
+  const presentation = transitionPresentation();
+  if (!presentation.title) {
+    hideNativeMetadataHeader();
+    return;
+  }
+
+  const isChannel = Boolean(
+    currentPresentation.isLive || currentPresentation.isRecording);
+  nativeHeaderElement.dataset.layout = isChannel ? 'channel' : 'movie';
+  if (nativeHeaderTitleElement) {
+    nativeHeaderTitleElement.textContent = presentation.title;
+  }
+  if (nativeHeaderSubtitleElement) {
+    nativeHeaderSubtitleElement.textContent = presentation.subtitle;
+    nativeHeaderSubtitleElement.hidden = !presentation.subtitle;
+  }
+  if (nativeHeaderArtworkElement) {
+    nativeHeaderArtworkElement.hidden = !presentation.artworkUrl;
+    if (presentation.artworkUrl) {
+      nativeHeaderArtworkElement.src = presentation.artworkUrl;
+    }
+  }
+  setLayerVisible(nativeHeaderElement, true);
+  if (delay > 0) {
+    nativeHeaderTimer = setTimeout(hideNativeMetadataHeader, delay);
+  }
 }
 
 function inspectNativeOverlayMutation() {
@@ -283,6 +323,8 @@ function inspectNativeOverlayMutation() {
     && Number(style.opacity || 1) > 0;
   if (isVisible) {
     showNativeMetadataHeader();
+  } else {
+    hideNativeMetadataHeader();
   }
 }
 
@@ -343,8 +385,13 @@ function setControlsUiProfile(profile) {
     hideLoader();
     showControlsOnNextPlayback = false;
     hideTransition();
+    if (currentPresentation) {
+      installNativeMetadataObserver();
+      showNativeMetadataHeader();
+    }
   } else if (profile === CONTROLS_UI_PROFILE.CUSTOM) {
     clearNativeMetadataObserver();
+    hideNativeMetadataHeader();
     installNativePlayerOverlaySuppression();
     if (currentPresentation) {
       showInitialControlsIfReady(true);
@@ -2705,6 +2752,7 @@ function resetPresentationLayers() {
   pauseTimelineElement?.classList.remove('scrubbing');
   hideError();
   hideEnd();
+  hideNativeMetadataHeader();
   hidePause();
   hideSeekPreview();
   hideReceiverStatus();

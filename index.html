@@ -92,9 +92,16 @@
         display: none !important;
       }
 
-      /* webOS/LG renders its own media header and controls. Do not duplicate
-         them with the receiver transition layer. */
+      /* webOS/LG keeps CAF's native media controls. The receiver transition
+         belongs to the custom control profile only. */
       html[data-controls-profile='native'] #receiver-transition {
+        display: none !important;
+      }
+
+      /* A compact metadata header is shared with native-control receivers.
+         It is intentionally separate from CAF's controls: we can make the
+         content identity consistent without replacing LG playback UI. */
+      html[data-controls-profile='pending'] #receiver-native-header {
         display: none !important;
       }
 
@@ -255,6 +262,125 @@
       #receiver-transition {
         z-index: 22;
         display: block;
+      }
+
+      #receiver-native-header {
+        z-index: 21;
+      }
+
+      #receiver-native-header-content {
+        position: absolute;
+        top: 4.5vh;
+        left: 5vw;
+        right: 5vw;
+        min-height: 108px;
+        color: #f7fafb;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.82));
+      }
+
+      #receiver-native-header-artwork {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 76px;
+        height: 108px;
+        border-radius: 4px;
+        background: transparent;
+        object-fit: contain;
+      }
+
+      #receiver-native-header-copy {
+        min-width: 0;
+      }
+
+      #receiver-native-header[data-layout='movie'] #receiver-native-header-copy {
+        position: absolute;
+        top: 50%;
+        left: 18vw;
+        right: 18vw;
+        transform: translateY(-50%);
+        text-align: center;
+      }
+
+      #receiver-native-header[data-layout='channel'] #receiver-native-header-content {
+        top: 5vh;
+        min-height: 72px;
+      }
+
+      #receiver-native-header[data-layout='channel'] #receiver-native-header-artwork {
+        width: 72px;
+        height: 72px;
+      }
+
+      #receiver-native-header[data-layout='channel'] #receiver-native-header-copy {
+        display: flex;
+        min-height: 72px;
+        max-width: min(680px, 54vw);
+        margin-left: 86px;
+        flex-direction: column;
+        justify-content: center;
+        text-align: left;
+      }
+
+      #receiver-native-header-title {
+        margin: 0;
+        overflow: hidden;
+        color: #f7fafb;
+        font: 650 28px/1.18 'Inter', Arial, sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      #receiver-native-header-subtitle {
+        margin-top: 7px;
+        overflow: hidden;
+        color: rgba(247, 250, 251, 0.72);
+        font: 500 18px/1.28 'Inter', Arial, sans-serif;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 900px) {
+        #receiver-native-header-content {
+          top: 28px;
+          left: 32px;
+          right: 32px;
+          min-height: 76px;
+        }
+
+        #receiver-native-header-artwork {
+          width: 54px;
+          height: 76px;
+        }
+
+        #receiver-native-header[data-layout='movie'] #receiver-native-header-copy {
+          left: 15vw;
+          right: 15vw;
+        }
+
+        #receiver-native-header[data-layout='channel'] #receiver-native-header-content {
+          top: 32px;
+          min-height: 54px;
+        }
+
+        #receiver-native-header[data-layout='channel'] #receiver-native-header-artwork {
+          width: 54px;
+          height: 54px;
+        }
+
+        #receiver-native-header[data-layout='channel'] #receiver-native-header-copy {
+          min-height: 54px;
+          margin-left: 66px;
+        }
+
+        #receiver-native-header-title {
+          font-size: 21px;
+        }
+
+        #receiver-native-header-subtitle {
+          margin-top: 4px;
+          font-size: 14px;
+        }
       }
 
       #receiver-transition-content {
@@ -1082,7 +1208,7 @@
       }
 
     </style>
-    <script defer src="receiver.js?v=receiver-smarttv-ui-65-namespaced-payload"></script>
+    <script defer src="receiver.js?v=receiver-native-header-66"></script>
   </head>
   <body>
     <cast-media-player id="receiver-player"></cast-media-player>
@@ -1108,6 +1234,15 @@
             <span id="receiver-transition-badge" class="receiver-badge"></span>
             <span id="receiver-transition-subtitle"></span>
           </div>
+        </div>
+      </div>
+    </div>
+    <div id="receiver-native-header" class="receiver-layer" data-layout="movie" aria-hidden="true">
+      <div id="receiver-native-header-content">
+        <img id="receiver-native-header-artwork" alt="">
+        <div id="receiver-native-header-copy">
+          <h1 id="receiver-native-header-title"></h1>
+          <div id="receiver-native-header-subtitle"></div>
         </div>
       </div>
     </div>
