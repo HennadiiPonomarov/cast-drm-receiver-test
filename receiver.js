@@ -74,6 +74,7 @@ const endArtworkElement = document.getElementById('receiver-end-artwork');
 const endTitleElement = document.getElementById('receiver-end-title');
 const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
+let idleRevealFrame = null;
 let loaderDelayTimer = null;
 let transitionTimer = null;
 let nativeHeaderVisibilityTimer = null;
@@ -2806,7 +2807,21 @@ function showIdle() {
   hideSeekPreview();
   hideEnd();
   if (idleElement) {
-    idleElement.classList.add('visible');
+    if (idleRevealFrame !== null) {
+      cancelAnimationFrame(idleRevealFrame);
+      idleRevealFrame = null;
+    }
+
+    // Do not add the visible state in the same render frame as receiver start.
+    // CAF otherwise paints the logo at full opacity and skips the fade-in.
+    idleElement.classList.remove('visible');
+    void idleElement.offsetWidth;
+    idleRevealFrame = requestAnimationFrame(() => {
+      idleRevealFrame = requestAnimationFrame(() => {
+        idleRevealFrame = null;
+        idleElement.classList.add('visible');
+      });
+    });
   }
 }
 
@@ -2846,6 +2861,10 @@ function hideIdle() {
   if (idleTimer !== null) {
     clearTimeout(idleTimer);
     idleTimer = null;
+  }
+  if (idleRevealFrame !== null) {
+    cancelAnimationFrame(idleRevealFrame);
+    idleRevealFrame = null;
   }
   if (idleElement) {
     idleElement.classList.remove('visible');
