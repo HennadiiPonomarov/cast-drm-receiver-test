@@ -1,0 +1,8 @@
+{
+  "name": "sweet-cast-receiver",
+  "private": true,
+  "scripts": {
+    "test": "node --test test/receiver-core.test.js",
+    "check": "node --check receiver-core.js && node --check receiver.js"
+  }
+}

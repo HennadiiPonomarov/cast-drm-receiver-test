@@ -1,5 +1,6 @@
 const context = cast.framework.CastReceiverContext.getInstance();
 const playerManager = context.getPlayerManager();
+const receiverCore = globalThis.SweetReceiverCore || {};
 const TRACKS_CHANNEL = 'urn:x-cast:tv.sweet.castdrm';
 const CONTROLS_UI_PROFILE = Object.freeze({
   PENDING: 'pending',
@@ -303,15 +304,15 @@ function showNativeMetadataHeader() {
   }
 
   hideTransition();
-  const presentation = transitionPresentation();
+  const presentation = receiverCore.nativeHeaderPresentation
+    ? receiverCore.nativeHeaderPresentation(currentPresentation)
+    : transitionPresentation();
   if (!presentation.title) {
     hideNativeMetadataHeader();
     return;
   }
 
-  const isChannel = Boolean(
-    currentPresentation.isLive || currentPresentation.isRecording);
-  nativeHeaderElement.dataset.layout = isChannel ? 'channel' : 'movie';
+  nativeHeaderElement.dataset.layout = presentation.layout || 'movie';
   if (nativeHeaderTitleElement) {
     nativeHeaderTitleElement.textContent = presentation.title;
   }
@@ -1093,14 +1094,20 @@ function sweetPlaybackData(value) {
 }
 
 function applyExplicitHlsPackaging(media, customData) {
-  const segmentFormat = String(customData?.hlsSegmentFormat || '').toUpperCase();
-  const videoSegmentFormat = String(customData?.hlsVideoSegmentFormat || '').toUpperCase();
-  if (segmentFormat === 'FMP4' && videoSegmentFormat === 'FMP4') {
+  const packaging = receiverCore.resolveHlsPackaging
+    ? receiverCore.resolveHlsPackaging(customData)
+    : {
+      segmentFormat: String(customData?.hlsSegmentFormat || '').toUpperCase(),
+      videoSegmentFormat: String(customData?.hlsVideoSegmentFormat || '').toUpperCase(),
+    };
+  if (packaging?.segmentFormat === 'FMP4'
+      && packaging.videoSegmentFormat === 'FMP4') {
     media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
     media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
     return true;
   }
-  if (segmentFormat === 'TS' && videoSegmentFormat === 'MPEG2_TS') {
+  if (packaging?.segmentFormat === 'TS'
+      && packaging.videoSegmentFormat === 'MPEG2_TS') {
     media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.TS;
     media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.MPEG2_TS;
     return true;
@@ -1257,6 +1264,17 @@ function presentationFor(media, customData = {}) {
       ? Number(customData.selectedSubtitleId)
       : previousTracks.subtitleId,
   };
+}
+
+function suppressNativeOverlayText(media) {
+  if (!usesNativeControls() || !media?.metadata) {
+    return;
+  }
+
+  const metadata = receiverCore.nativeOverlayMetadata
+    ? receiverCore.nativeOverlayMetadata(media.metadata)
+    : {...media.metadata, title: '', subtitle: ''};
+  Object.assign(media.metadata, metadata);
 }
 
 function formatProgrammeTime(epochSeconds) {
@@ -3452,6 +3470,9 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   playbackPaused = loadRequest.autoplay === false;
   showControlsOnNextPlayback = true;
   currentPresentation = presentationFor(media, customData);
+  // Preserve the complete presentation above native controls, but ensure
+  // WebOS does not render its own duplicate title/subtitle below the timeline.
+  suppressNativeOverlayText(media);
   presentationTerminalGuardUntil =
     Date.now() + PRESENTATION_START_TERMINAL_GUARD_MS;
   controlsFocusArea = 'actions';
