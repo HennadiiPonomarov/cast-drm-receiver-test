@@ -3272,6 +3272,11 @@ function handleReceiverKey(event) {
   }
 
   if (back && !isOptionsVisible() && !controlsAreVisible()) {
+    // The first Back hides custom controls. A subsequent Back must leave the
+    // receiver instead of trapping the user in the Cast application.
+    consumeRemoteKey(event);
+    suppressBackKeyUp = true;
+    stopPlaybackFromRemote();
     return;
   }
   consumeRemoteKey(event);
