@@ -11,6 +11,7 @@ const CONTROLS_PROFILE_RESOLVE_TIMEOUT_MS = 1400;
 const SEEK_PREVIEW_WIDTH = 208;
 const SEEK_PREVIEW_HEIGHT = 117;
 const LOADER_DELAY_MS = 2000;
+const IDLE_MIN_VISIBLE_MS = 1000;
 const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
@@ -78,6 +79,9 @@ const endTitleElement = document.getElementById('receiver-end-title');
 const endMetaElement = document.getElementById('receiver-end-meta');
 let idleTimer = null;
 let idleRevealFrame = null;
+let idleHideTimer = null;
+let idleVisibleSince = 0;
+let idleHideRequested = false;
 let loaderDelayTimer = null;
 let transitionTimer = null;
 let nativeHeaderVisibilityTimer = null;
@@ -2558,7 +2562,7 @@ function showEnd() {
   hideTransition();
   hidePause();
   hideSeekPreview();
-  hideIdle();
+  hideIdle({immediate: true});
   hideError();
   if (endArtworkElement) {
     endArtworkElement.hidden = !currentPresentation?.artworkUrl;
@@ -2901,6 +2905,12 @@ function showIdle() {
     clearTimeout(idleTimer);
     idleTimer = null;
   }
+  if (idleHideTimer !== null) {
+    clearTimeout(idleHideTimer);
+    idleHideTimer = null;
+  }
+  idleVisibleSince = 0;
+  idleHideRequested = false;
   hideTransition();
   hidePause();
   hideSeekPreview();
@@ -2919,6 +2929,11 @@ function showIdle() {
       idleRevealFrame = requestAnimationFrame(() => {
         idleRevealFrame = null;
         idleElement.classList.add('visible');
+        idleVisibleSince = Date.now();
+        if (idleHideRequested) {
+          idleHideRequested = false;
+          hideIdle();
+        }
       });
     });
   }
@@ -2956,18 +2971,52 @@ function stopPlaybackFromRemote() {
   }, 120);
 }
 
-function hideIdle() {
+function hideIdle({immediate = false} = {}) {
   if (idleTimer !== null) {
     clearTimeout(idleTimer);
     idleTimer = null;
   }
-  if (idleRevealFrame !== null) {
-    cancelAnimationFrame(idleRevealFrame);
-    idleRevealFrame = null;
+  if (!idleElement) {
+    return;
   }
-  if (idleElement) {
+
+  const hide = () => {
+    if (idleRevealFrame !== null) {
+      cancelAnimationFrame(idleRevealFrame);
+      idleRevealFrame = null;
+    }
+    idleHideTimer = null;
+    idleVisibleSince = 0;
+    idleHideRequested = false;
     idleElement.classList.remove('visible');
+  };
+
+  if (immediate) {
+    if (idleHideTimer !== null) {
+      clearTimeout(idleHideTimer);
+      idleHideTimer = null;
+    }
+    hide();
+    return;
   }
+
+  if (idleRevealFrame !== null
+      || !idleElement.classList.contains('visible')
+      || idleVisibleSince === 0) {
+    idleHideRequested = true;
+    return;
+  }
+
+  const remaining = IDLE_MIN_VISIBLE_MS - (Date.now() - idleVisibleSince);
+  if (remaining <= 0) {
+    hide();
+    return;
+  }
+
+  if (idleHideTimer !== null) {
+    clearTimeout(idleHideTimer);
+  }
+  idleHideTimer = setTimeout(hide, remaining);
 }
 
 function scheduleIdle() {
@@ -3564,7 +3613,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   subtitleTrackCatalog = [];
   resetPresentationLayers();
   updateControlAvailability();
-  hideIdle();
+  // Keep the receiver intro visible until playback really begins.
   if (usesNativeControls()) {
     showNativeMetadataHeader({initial: true});
     installNativeMetadataObserver();
@@ -3612,7 +3661,6 @@ playerManager.setMediaPlaybackInfoHandler((loadRequest, playbackConfig) => {
   playbackHasError = false;
   playbackStopped = false;
   playbackEnded = false;
-  hideIdle();
   hideError();
   hideEnd();
   showLoader();
@@ -3707,7 +3755,7 @@ playerManager.addEventListener(cast.framework.events.EventType.ERROR, event => {
   playbackHasError = true;
   playbackEnded = false;
   pendingControlAfterLoad = null;
-  hideIdle();
+  hideIdle({immediate: true});
   showError(code);
   sendReceiverMessage({
     type: 'receiver-error',
@@ -3729,7 +3777,6 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   if (usesCustomControls()) {
     suppressNativePlayerOverlay();
   }
-  hideIdle();
   hideLoader();
   hideReceiverStatus();
   if (usesNativeControls()) {
@@ -3796,6 +3843,7 @@ function handlePlaybackPlaying() {
   playbackPaused = false;
   playbackStopped = false;
   playbackEnded = false;
+  hideIdle();
   if (presentationTerminalGuardUntil > 0) {
     presentationTerminalGuardUntil = Math.min(
         presentationTerminalGuardUntil,
