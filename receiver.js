@@ -586,10 +586,17 @@ function ensureSubtitleOverrideStyle(root) {
     (root === document ? document.head : root).appendChild(style);
   }
   const foregroundColor = subtitleCssColor(subtitleForegroundColor);
+  const backgroundColor = subtitleCssColor(subtitleBackgroundColor);
   style.textContent = [
-    '.shaka-text-container, .shaka-text-container * {',
+    '.shaka-text-container {',
+    '  background: transparent !important;',
+    '  background-color: transparent !important;',
+    '}',
+    '.shaka-text-container * {',
     `  color: ${foregroundColor} !important;`,
     `  -webkit-text-fill-color: ${foregroundColor} !important;`,
+    `  background: ${backgroundColor} !important;`,
+    `  background-color: ${backgroundColor} !important;`,
     `  text-shadow: ${subtitleTextShadow()} !important;`,
     `  font-size: ${subtitleFontSize().toFixed(2)}vh !important;`,
     '  line-height: 1.22 !important;',
@@ -612,9 +619,14 @@ function styleSubtitleTextElement(element) {
     'important');
   const hasText = Array.from(element.childNodes)
     .some(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+  const cueBackground = hasText ? backgroundColor : 'transparent';
   element.style.setProperty(
     'background-color',
-    hasText ? backgroundColor : 'transparent',
+    cueBackground,
+    'important');
+  element.style.setProperty(
+    'background',
+    cueBackground,
     'important');
   if (hasText) {
     element.style.setProperty(
@@ -1952,6 +1964,9 @@ function applySubtitleStyle(markDirty = true, notifySender = markDirty) {
     const manager = playerManager.getTextTracksManager();
     manager.setTextTrackStyle(buildReceiverSubtitleStyle());
     applySubtitleViewportPosition();
+    // CAF/Shaka can recreate cue nodes on the next frame after the native
+    // TextTrackStyle call. Re-apply the receiver theme after that update too.
+    window.requestAnimationFrame(applySubtitleViewportPosition);
     if (notifySender) {
       notifySubtitleStyleApplied();
     }
