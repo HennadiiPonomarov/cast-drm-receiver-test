@@ -153,6 +153,13 @@
         gap: 0;
         max-width: 76vw;
         transform: translate(-50%, -50%);
+        transition: top 240ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      /* While the idle splash is visible, reserve the center for the mark.
+         The buffering indicator is moved below it rather than painted over it. */
+      #receiver-loader.with-idle-logo #receiver-loader-activity {
+        top: calc(50% + clamp(78px, 9vh, 116px));
       }
 
       .receiver-loader-spinner {

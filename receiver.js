@@ -2889,6 +2889,7 @@ function showLoader(label = translate('loading')) {
   }
   loaderDelayTimer = setTimeout(() => {
     loaderDelayTimer = null;
+    syncLoaderIdleLayout();
     loaderElement.classList.add('visible');
   }, LOADER_DELAY_MS);
 }
@@ -2897,7 +2898,18 @@ function hideLoader() {
   loaderDelayTimer = clearTimer(loaderDelayTimer);
   if (loaderElement) {
     loaderElement.classList.remove('visible');
+    loaderElement.classList.remove('with-idle-logo');
   }
+}
+
+function syncLoaderIdleLayout() {
+  if (!loaderElement) {
+    return;
+  }
+  loaderElement.classList.toggle(
+      'with-idle-logo',
+      Boolean(idleElement?.classList.contains('visible')),
+  );
 }
 
 function showIdle() {
@@ -2929,6 +2941,7 @@ function showIdle() {
       idleRevealFrame = requestAnimationFrame(() => {
         idleRevealFrame = null;
         idleElement.classList.add('visible');
+        syncLoaderIdleLayout();
         idleVisibleSince = Date.now();
         if (idleHideRequested) {
           idleHideRequested = false;
@@ -2989,6 +3002,8 @@ function hideIdle({immediate = false} = {}) {
     idleVisibleSince = 0;
     idleHideRequested = false;
     idleElement.classList.remove('visible');
+    // Keep the spinner below the fading logo until the splash is gone.
+    setTimeout(syncLoaderIdleLayout, 430);
   };
 
   if (immediate) {
