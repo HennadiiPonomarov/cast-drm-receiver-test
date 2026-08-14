@@ -2727,8 +2727,9 @@ function applyThumbnailCrop(cue) {
   crop = crop || [0, 0, seekImageElement.naturalWidth, seekImageElement.naturalHeight];
   const [x, y, width, height] = crop;
   if (!width || !height) {
+    seekFrameElement.hidden = true;
     seekImageElement.style.display = 'none';
-    return;
+    return false;
   }
   const scale = Math.min(SEEK_PREVIEW_WIDTH / width, SEEK_PREVIEW_HEIGHT / height);
   seekFrameElement.style.width = `${Math.round(width * scale)}px`;
@@ -2738,6 +2739,7 @@ function applyThumbnailCrop(cue) {
   seekImageElement.style.left = `${Math.round(-x * scale)}px`;
   seekImageElement.style.top = `${Math.round(-y * scale)}px`;
   seekImageElement.style.display = 'block';
+  seekFrameElement.hidden = false;
   if (!thumbnailRenderReported) {
     thumbnailRenderReported = true;
     sendReceiverMessage({
@@ -2748,28 +2750,44 @@ function applyThumbnailCrop(cue) {
       cueCount: thumbnailCues.length,
     });
   }
+  return true;
 }
 
 function renderThumbnailCue(cue) {
   if (!seekImageElement || !seekFrameElement) {
-    return;
+    return false;
   }
   if (!cue?.imageUrl) {
     thumbnailRenderKey = '';
     seekFrameElement.hidden = true;
     seekImageElement.style.display = 'none';
-    return;
+    return false;
   }
   const cropKey = Array.isArray(cue.crop) ? cue.crop.join(',') : cue.spriteFrame;
   const renderKey = `${cue.imageUrl}|${cropKey ?? 'full'}`;
   if (thumbnailRenderKey === renderKey && seekImageElement.style.display !== 'none') {
-    return;
+    return true;
   }
   thumbnailRenderKey = renderKey;
-  seekFrameElement.hidden = false;
-  seekImageElement.onload = () => applyThumbnailCrop(cue);
+  seekFrameElement.hidden = true;
+  seekImageElement.style.display = 'none';
+  seekImageElement.onload = () => {
+    if (thumbnailRenderKey !== renderKey || !applyThumbnailCrop(cue)) {
+      return;
+    }
+    // The time label is meaningful only together with an actual preview frame.
+    if (Number.isFinite(previewSeekPosition)) {
+      showSeekPreview(previewSeekPosition, false);
+    }
+  };
   seekImageElement.onerror = () => {
+    if (thumbnailRenderKey !== renderKey) {
+      return;
+    }
+    thumbnailRenderKey = '';
+    seekFrameElement.hidden = true;
     seekImageElement.style.display = 'none';
+    seekPreviewElement?.classList.remove('visible');
     if (!thumbnailRenderReported) {
       thumbnailRenderReported = true;
       sendReceiverMessage({
@@ -2783,11 +2801,11 @@ function renderThumbnailCue(cue) {
   };
   if (seekImageElement.dataset.sourceUrl === cue.imageUrl
       && seekImageElement.complete && seekImageElement.naturalWidth > 0) {
-    applyThumbnailCrop(cue);
-    return;
+    return applyThumbnailCrop(cue);
   }
   seekImageElement.dataset.sourceUrl = cue.imageUrl;
   seekImageElement.src = cue.imageUrl;
+  return false;
 }
 
 function showSeekPreview(positionSeconds, autoHide = false, durationOverride = null) {
@@ -2804,8 +2822,12 @@ function showSeekPreview(positionSeconds, autoHide = false, durationOverride = n
   if (seekTimeElement) {
     seekTimeElement.textContent = formatSeekTime(position);
   }
-  renderThumbnailCue(thumbnailCueAt(position));
+  const hasThumbnail = renderThumbnailCue(thumbnailCueAt(position));
   if (seekPreviewElement) {
+    if (!hasThumbnail) {
+      seekPreviewElement.classList.remove('visible');
+      return;
+    }
     if (Number.isFinite(duration) && duration > 0) {
       const ratio = Math.max(0, Math.min(1, position / duration));
       const timelineBounds = timelineBoundsCache;
