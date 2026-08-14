@@ -3024,7 +3024,7 @@ function hideIdle({immediate = false} = {}) {
     idleVisibleSince = 0;
     idleHideRequested = false;
     idleElement.classList.remove('visible');
-    // Keep the spinner below the fading logo until the splash is gone.
+    // Keep the loader hidden until the idle-logo fade has completely finished.
     setTimeout(syncLoaderIdleLayout, 430);
   };
 
