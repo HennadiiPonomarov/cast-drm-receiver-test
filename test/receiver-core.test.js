@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   nativeHeaderPresentation,
+  nativeHeaderVisibilityMode,
   nativeOverlayMetadata,
   resolveHlsPackaging,
 } = require('../receiver-core.js');
@@ -76,6 +77,30 @@ test('keeps native artwork metadata but removes duplicated native copy', () => {
   assert.equal(metadata.subtitle, '');
   assert.deepEqual(metadata.images, [{url: 'https://static.sweet.tv/natgeo.png'}]);
   assert.equal(metadata.metadataType, 0);
+});
+
+test('keeps the native header through the initial WebOS overlay hand-off', () => {
+  assert.equal(nativeHeaderVisibilityMode({
+    hasPresentation: true,
+    overlayVisibility: false,
+    initial: true,
+  }), 'grace');
+  assert.equal(nativeHeaderVisibilityMode({
+    hasPresentation: true,
+    overlayVisibility: null,
+  }), 'grace');
+  assert.equal(nativeHeaderVisibilityMode({
+    hasPresentation: true,
+    overlayVisibility: true,
+  }), 'follow');
+  assert.equal(nativeHeaderVisibilityMode({
+    hasPresentation: true,
+    overlayVisibility: false,
+  }), 'hide');
+  assert.equal(nativeHeaderVisibilityMode({
+    hasPresentation: false,
+    overlayVisibility: true,
+  }), 'hide');
 });
 
 test('maps only fully declared CMAF/fMP4 HLS packaging', () => {

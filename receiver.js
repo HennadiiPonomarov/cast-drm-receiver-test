@@ -15,6 +15,8 @@ const SEEK_COMMIT_DELAY_MS = 220;
 const SEEK_SETTLE_TIMEOUT_MS = 3500;
 const PRESENTATION_START_TERMINAL_GUARD_MS = 4000;
 const PLAYING_TERMINAL_GUARD_MS = 1000;
+const NATIVE_HEADER_START_GRACE_MS = 4600;
+const NATIVE_HEADER_WATCH_INTERVAL_MS = 120;
 const SUBTITLE_STYLE_RETRY_DELAYS_MS = [0, 60, 140, 300, 600, 1000];
 const TRACK_RESTORE_RETRY_DELAYS_MS = [0, 80, 180, 350, 700, 1200, 2000];
 const LOCAL_SUBTITLE_SELECTION_LOCK_MS = 10000;
@@ -79,6 +81,8 @@ let idleRevealFrame = null;
 let loaderDelayTimer = null;
 let transitionTimer = null;
 let nativeHeaderVisibilityTimer = null;
+let nativeHeaderGraceTimer = null;
+let nativeHeaderGraceUntil = 0;
 let seekPreviewTimer = null;
 let playbackHasError = false;
 let playbackStopped = false;
@@ -269,18 +273,60 @@ function clearNativeMetadataObserver() {
 
 function hideNativeMetadataHeader() {
   nativeHeaderVisibilityTimer = clearTimer(nativeHeaderVisibilityTimer);
+  nativeHeaderGraceTimer = clearTimer(nativeHeaderGraceTimer);
+  nativeHeaderGraceUntil = 0;
   setLayerVisible(nativeHeaderElement, false);
 }
 
-function isNativeOverlayVisible() {
+function nativeOverlayVisibility() {
   const nativeOverlay = getNativePlayerOverlay();
   if (!nativeOverlay) {
-    return false;
+    return null;
   }
   const style = window.getComputedStyle(nativeOverlay);
   return style.display !== 'none'
     && style.visibility !== 'hidden'
     && Number(style.opacity || 1) > 0;
+}
+
+function nativeHeaderVisibilityMode(initial = false) {
+  const hasPresentation = Boolean(currentPresentation && nativeHeaderElement);
+  const overlayVisibility = nativeOverlayVisibility();
+  if (receiverCore.nativeHeaderVisibilityMode) {
+    return receiverCore.nativeHeaderVisibilityMode({
+      hasPresentation,
+      overlayVisibility,
+      initial,
+    });
+  }
+  if (!hasPresentation) {
+    return 'hide';
+  }
+  if (overlayVisibility === true) {
+    return 'follow';
+  }
+  return initial || overlayVisibility === null ? 'grace' : 'hide';
+}
+
+function keepNativeHeaderDuringOverlayStartup() {
+  if (nativeHeaderGraceUntil > Date.now()) {
+    return;
+  }
+  nativeHeaderVisibilityTimer = clearTimer(nativeHeaderVisibilityTimer);
+  nativeHeaderGraceTimer = clearTimer(nativeHeaderGraceTimer);
+  nativeHeaderGraceUntil = Date.now() + NATIVE_HEADER_START_GRACE_MS;
+  nativeHeaderGraceTimer = setTimeout(() => {
+    nativeHeaderGraceTimer = null;
+    nativeHeaderGraceUntil = 0;
+    if (!usesNativeControls() || !nativeHeaderElement?.classList.contains('visible')) {
+      return;
+    }
+    if (nativeOverlayVisibility() === true) {
+      watchNativeOverlayVisibility();
+    } else {
+      hideNativeMetadataHeader();
+    }
+  }, NATIVE_HEADER_START_GRACE_MS);
 }
 
 function watchNativeOverlayVisibility() {
@@ -289,15 +335,20 @@ function watchNativeOverlayVisibility() {
     return;
   }
   nativeHeaderVisibilityTimer = setTimeout(() => {
-    if (isNativeOverlayVisible()) {
+    const visibility = nativeOverlayVisibility();
+    if (visibility === true) {
       watchNativeOverlayVisibility();
+    } else if (nativeHeaderGraceUntil > Date.now()) {
+      // WebOS has not exposed its native overlay yet. The grace timer will
+      // decide whether the header should stay visible or be removed.
+      return;
     } else {
       hideNativeMetadataHeader();
     }
-  }, 120);
+  }, NATIVE_HEADER_WATCH_INTERVAL_MS);
 }
 
-function showNativeMetadataHeader() {
+function showNativeMetadataHeader({initial = false} = {}) {
   if (!usesNativeControls() || !currentPresentation || !nativeHeaderElement) {
     hideNativeMetadataHeader();
     return;
@@ -327,7 +378,14 @@ function showNativeMetadataHeader() {
     }
   }
   setLayerVisible(nativeHeaderElement, true);
-  watchNativeOverlayVisibility();
+  const mode = nativeHeaderVisibilityMode(initial);
+  if (mode === 'follow') {
+    watchNativeOverlayVisibility();
+  } else if (mode === 'grace') {
+    keepNativeHeaderDuringOverlayStartup();
+  } else {
+    hideNativeMetadataHeader();
+  }
 }
 
 function inspectNativeOverlayMutation() {
@@ -335,8 +393,16 @@ function inspectNativeOverlayMutation() {
   if (!usesNativeControls()) {
     return;
   }
-  if (isNativeOverlayVisible()) {
+  // WebOS mutates the player tree while its first native overlay frame is
+  // still pending. Do not let those early mutations cancel the start grace.
+  if (nativeHeaderGraceUntil > Date.now() && nativeOverlayVisibility() !== true) {
+    return;
+  }
+  const mode = nativeHeaderVisibilityMode(false);
+  if (mode === 'follow') {
     showNativeMetadataHeader();
+  } else if (mode === 'grace') {
+    keepNativeHeaderDuringOverlayStartup();
   } else {
     hideNativeMetadataHeader();
   }
@@ -348,8 +414,7 @@ function installNativeMetadataObserver() {
     return;
   }
   const playerShadowRoot = playerElement?.shadowRoot;
-  const nativeOverlay = getNativePlayerOverlay();
-  if (!playerShadowRoot || !nativeOverlay) {
+  if (!playerShadowRoot) {
     window.setTimeout(installNativeMetadataObserver, 250);
     return;
   }
@@ -364,7 +429,7 @@ function installNativeMetadataObserver() {
     subtree: true,
     attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'],
   });
-  inspectNativeOverlayMutation();
+  showNativeMetadataHeader({initial: true});
 }
 
 function installNativePlayerOverlaySuppression() {
@@ -3302,6 +3367,14 @@ function handleReceiverKey(event) {
   // remote keys, focus and media-button semantics. The custom UI is only a
   // fallback for receivers without that layer.
   if (!usesCustomControls()) {
+    // LG/WebOS does not consistently expose the actual visibility of its CAF
+    // overlay. Re-show the header whenever the viewer opens native controls
+    // with the remote; the grace period bridges the platform's delayed paint.
+    if (back || stop) {
+      hideNativeMetadataHeader();
+    } else {
+      showNativeMetadataHeader({initial: true});
+    }
     return;
   }
 
@@ -3493,6 +3566,7 @@ playerManager.setMessageInterceptor(cast.framework.messages.MessageType.LOAD, lo
   updateControlAvailability();
   hideIdle();
   if (usesNativeControls()) {
+    showNativeMetadataHeader({initial: true});
     installNativeMetadataObserver();
   } else {
     hideTransition();
@@ -3659,7 +3733,8 @@ playerManager.addEventListener(cast.framework.events.EventType.PLAYER_LOAD_COMPL
   hideLoader();
   hideReceiverStatus();
   if (usesNativeControls()) {
-    inspectNativeOverlayMutation();
+    showNativeMetadataHeader({initial: true});
+    installNativeMetadataObserver();
   } else {
     hideTransition();
   }

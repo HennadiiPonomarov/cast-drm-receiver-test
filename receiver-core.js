@@ -71,8 +71,32 @@
     };
   }
 
+  /**
+   * Native CAF overlays are not consistent across receiver devices. In
+   * particular, WebOS can report its overlay as hidden before it has painted
+   * the first native controls frame. Keep the receiver header briefly while
+   * that hand-off settles instead of immediately hiding it.
+   */
+  function nativeHeaderVisibilityMode({
+    hasPresentation = false,
+    overlayVisibility = null,
+    initial = false,
+  } = {}) {
+    if (!hasPresentation) {
+      return 'hide';
+    }
+    if (overlayVisibility === true) {
+      return 'follow';
+    }
+    if (initial || overlayVisibility === null) {
+      return 'grace';
+    }
+    return 'hide';
+  }
+
   return Object.freeze({
     nativeHeaderPresentation,
+    nativeHeaderVisibilityMode,
     nativeOverlayMetadata,
     resolveHlsPackaging,
   });
