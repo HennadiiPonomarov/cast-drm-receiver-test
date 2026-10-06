@@ -19,8 +19,13 @@
   function resolveHlsPackaging(customData = {}) {
     const segmentFormat = text(customData.hlsSegmentFormat).toUpperCase();
     const videoSegmentFormat = text(customData.hlsVideoSegmentFormat).toUpperCase();
+    const isFmp4Segment = ['FMP4', 'M4S', 'CMAF'].includes(segmentFormat);
+    const isFmp4VideoSegment = ['FMP4', 'M4S', 'CMAF'].includes(videoSegmentFormat);
 
-    if (segmentFormat === 'FMP4' && videoSegmentFormat === 'FMP4') {
+    // The sender normally uses CAF's canonical FMP4 tokens. Accept the
+    // explicit `.m4s`/CMAF aliases as well: they still identify the same
+    // packaging and must never fall through to the TS proxy default.
+    if (isFmp4Segment && isFmp4VideoSegment) {
       return {segmentFormat: 'FMP4', videoSegmentFormat: 'FMP4'};
     }
     if (segmentFormat === 'TS' && videoSegmentFormat === 'MPEG2_TS') {

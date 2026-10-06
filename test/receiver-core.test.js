@@ -114,6 +114,16 @@ test('maps only fully declared CMAF/fMP4 HLS packaging', () => {
   assert.equal(resolveHlsPackaging({hlsSegmentFormat: 'FMP4'}), null);
 });
 
+test('maps explicitly declared .m4s/CMAF aliases to fMP4', () => {
+  assert.deepEqual(resolveHlsPackaging({
+    hlsSegmentFormat: 'm4s',
+    hlsVideoSegmentFormat: 'CMAF',
+  }), {
+    segmentFormat: 'FMP4',
+    videoSegmentFormat: 'FMP4',
+  });
+});
+
 test('maps MPEG-TS packaging and leaves unknown formats for CAF autodetection', () => {
   assert.deepEqual(resolveHlsPackaging({
     hlsSegmentFormat: 'TS',
